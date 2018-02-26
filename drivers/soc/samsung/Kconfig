@@ -284,6 +284,10 @@ config EXYNOS_DEBUG_FREQ
 	  If this config is set, check constraint freq every time which cpufreq,
 	  devfreq are changed. In case of that, print error message
 
+config STATE_NOTIFIER
+	bool "State Notifier"
+	default n
+
 source "drivers/soc/samsung/exynos_cpu_perf/Kconfig"
 endif
 
