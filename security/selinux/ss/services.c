@@ -438,6 +438,7 @@ mls_ops:
 	return s[0];
 }
 
+#ifdef CONFIG_AUDIT
 /*
  * security_dump_masked_av - dumps masked permissions during
  * security_compute_av due to RBAC, MLS/Constraint and Type bounds.
@@ -528,6 +529,7 @@ out:
 
 	return;
 }
+#endif
 
 /*
  * security_boundary_permission - drops violated permissions
@@ -582,9 +584,11 @@ static void type_attribute_bounds_av(struct policydb *policydb,
 	/* mask violated permissions */
 	avd->allowed &= ~masked;
 
+#ifdef CONFIG_AUDIT
 	/* audit masked permissions */
 	security_dump_masked_av(policydb, scontext, tcontext,
 				tclass, masked, "bounds");
+#endif
 }
 
 /*
@@ -731,6 +735,7 @@ static int security_validtrans_handle_fail(struct selinux_state *state,
 					   struct context *tcontext,
 					   u16 tclass)
 {
+#ifdef CONFIG_AUDIT
 	struct policydb *p = &state->ss->policydb;
 	char *o = NULL, *n = NULL, *t = NULL;
 	u32 olen, nlen, tlen;
@@ -749,6 +754,7 @@ out:
 	kfree(o);
 	kfree(n);
 	kfree(t);
+#endif
 
 	if (!enforcing_enabled(state))
 		return 0;
@@ -918,6 +924,7 @@ int security_bounded_transition(struct selinux_state *state,
 		index = type->bounds;
 	}
 
+#ifdef CONFIG_AUDIT
 	if (rc) {
 		char *old_name = NULL;
 		char *new_name = NULL;
@@ -937,6 +944,7 @@ int security_bounded_transition(struct selinux_state *state,
 		kfree(new_name);
 		kfree(old_name);
 	}
+#endif
 out:
 	read_unlock(&state->ss->policy_rwlock);
 
@@ -1574,6 +1582,7 @@ static int compute_sid_handle_invalid_context(
 	u16 tclass,
 	struct context *newcontext)
 {
+#ifdef CONFIG_AUDIT
 	struct policydb *policydb = &state->ss->policydb;
 	char *s = NULL, *t = NULL, *n = NULL;
 	u32 slen, tlen, nlen;
@@ -1594,6 +1603,7 @@ out:
 	kfree(s);
 	kfree(t);
 	kfree(n);
+#endif
 	if (!enforcing_enabled(state))
 		return 0;
 	return -EACCES;
@@ -2988,8 +2998,6 @@ int security_sid_mls_copy(struct selinux_state *state,
 	struct context *context1;
 	struct context *context2;
 	struct context newcon;
-	char *s;
-	u32 len;
 	int rc;
 
 	rc = 0;
@@ -3029,6 +3037,10 @@ int security_sid_mls_copy(struct selinux_state *state,
 	if (!policydb_context_isvalid(policydb, &newcon)) {
 		rc = convert_context_handle_invalid_context(state, &newcon);
 		if (rc) {
+#ifdef CONFIG_AUDIT
+			char *s;
+			u32 len;
+			
 			if (!context_struct_to_string(policydb, &newcon, &s,
 						      &len)) {
 				audit_log(audit_context(),
@@ -3037,6 +3049,7 @@ int security_sid_mls_copy(struct selinux_state *state,
 					  "invalid_context=%s", s);
 				kfree(s);
 			}
+#endif
 			goto out_unlock;
 		}
 	}
@@ -3276,6 +3289,7 @@ int security_policycap_supported(struct selinux_state *state,
 	return rc;
 }
 
+#ifdef CONFIG_AUDIT
 struct selinux_audit_rule {
 	u32 au_seqno;
 	struct context au_ctxt;
@@ -3546,6 +3560,7 @@ static int __init aurule_init(void)
 	return err;
 }
 __initcall(aurule_init);
+#endif
 
 #ifdef CONFIG_NETLABEL
 /**
