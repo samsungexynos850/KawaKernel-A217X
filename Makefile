@@ -360,8 +360,13 @@ HOST_LFS_CFLAGS := $(shell getconf LFS_CFLAGS 2>/dev/null)
 HOST_LFS_LDFLAGS := $(shell getconf LFS_LDFLAGS 2>/dev/null)
 HOST_LFS_LIBS := $(shell getconf LFS_LIBS 2>/dev/null)
 
-HOSTCC       = $(CCACHE) gcc
-HOSTCXX      = $(CCACHE) g++
+ifneq ($(LLVM),)
+HOSTCC	= $(CCACHE) clang
+HOSTCXX	= $(CCACHE) clang++
+else
+HOSTCC	= $(CCACHE) gcc
+HOSTCXX	= $(CCACHE) g++
+endif
 KBUILD_HOSTCFLAGS   := -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 \
 		-fomit-frame-pointer -std=gnu89 $(HOST_LFS_CFLAGS) \
 		$(HOSTCFLAGS)
@@ -370,18 +375,30 @@ KBUILD_HOSTLDFLAGS  := $(HOST_LFS_LDFLAGS) $(HOSTLDFLAGS)
 KBUILD_HOSTLDLIBS   := $(HOST_LFS_LIBS) $(HOSTLDLIBS)
 
 # Make variables (CC, etc...)
-LD		= $(CCACHE) $(CROSS_COMPILE)ld
-CC		= $(CCACHE) $(CROSS_COMPILE)gcc
 CPP		= $(CCACHE) $(CC) -E
+ifneq ($(LLVM),)
+CC		= $(CCACHE) clang
+LD		= $(CCACHE) ld.lld
+AR		= $(CCACHE) llvm-ar
+NM		= $(CCACHE) llvm-nm
+OBJCOPY		= $(CCACHE) llvm-objcopy
+OBJDUMP		= $(CCACHE) llvm-objdump
+READELF		= $(CCACHE) llvm-readelf
+OBJSIZE		= $(CCACHE) llvm-size
+STRIP		= $(CCACHE) llvm-strip
+else
+CC		= $(CCACHE) $(CROSS_COMPILE)gcc
+LD		= $(CCACHE) $(CROSS_COMPILE)ld
 AR		= $(CCACHE) $(CROSS_COMPILE)ar
 NM		= $(CCACHE) $(CROSS_COMPILE)nm
-STRIP		= $(CCACHE) $(CROSS_COMPILE)strip
 OBJCOPY		= $(CCACHE) $(CROSS_COMPILE)objcopy
 OBJDUMP		= $(CCACHE) $(CROSS_COMPILE)objdump
-OBJSIZE		= $(CCACHE) $(CROSS_COMPILE)size
 READELF		= $(CCACHE) $(CROSS_COMPILE)readelf
+OBJSIZE		= $(CCACHE) $(CROSS_COMPILE)size
+STRIP		= $(CCACHE) $(CROSS_COMPILE)strip
+endif
 LEX		= flex
-YACC		= bison
+YACC	= bison
 AWK		= awk
 GENKSYMS	= scripts/genksyms/genksyms
 INSTALLKERNEL  := installkernel
