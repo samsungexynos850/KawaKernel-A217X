@@ -184,7 +184,7 @@ void g2d_prepare_suspend(struct g2d_device *g2d_dev)
 	spin_unlock_irq(&g2d_dev->lock_task);
 
 	g2d_stamp_task(NULL, G2D_STAMP_STATE_SUSPEND, 0);
-	wait_event(g2d_dev->freeze_wait, list_empty(&g2d_dev->tasks_active));
+	wait_event_interruptible(g2d_dev->freeze_wait, list_empty(&g2d_dev->tasks_active));
 	g2d_stamp_task(NULL, G2D_STAMP_STATE_SUSPEND, 1);
 }
 
