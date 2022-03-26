@@ -7,6 +7,6 @@ obj-$(CONFIG_TZDEV)			+= teec/
 obj-$(CONFIG_TZDEV)			+= debug/
 obj-$(CONFIG_TZDEV)			+= extensions/
 
-obj-$(CONFIG_TZDEV_DEBUG)		+= tests/
+# obj-$(CONFIG_TZDEV_DEBUG)		+= tests/
 
 ccflags-$(CONFIG_TZ_PMF) += -DCONFIG_TZ_PMF
