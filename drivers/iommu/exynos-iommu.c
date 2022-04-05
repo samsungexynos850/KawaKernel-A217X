@@ -1312,7 +1312,7 @@ static int exynos_iommu_of_xlate(struct device *master,
 
 		owner = kzalloc(sizeof(*owner), GFP_KERNEL);
 		if (!owner) {
-			put_device(&sysmmu->dev);
+			put_device(&sysmmu_pdev->dev);
 			return -ENOMEM;
 		}
 
