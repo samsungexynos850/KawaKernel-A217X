@@ -876,7 +876,6 @@ struct s2mu106_muic_data {
 #endif
 };
 
-extern unsigned int lpcharge;
 extern struct muic_platform_data muic_pdata;
 
 int s2mu106_i2c_read_byte(struct i2c_client *client, u8 command);

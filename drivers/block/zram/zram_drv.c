@@ -38,6 +38,8 @@
 #include <linux/jiffies.h>
 #include <linux/vmstat.h>
 #include <linux/statfs.h>
+#include <linux/compat.h>
+#include <uapi/linux/falloc.h>
 #include <uapi/linux/sched/types.h>
 
 #include "zram_drv.h"
@@ -344,16 +346,79 @@ static struct zram *g_zram;
 static struct notifier_block zram_app_launch_nb;
 static bool is_app_launch;
 
+#define F2FS_IOCTL_MAGIC	0xf5
+#define F2FS_IOC_SET_PIN_FILE	_IOW(F2FS_IOCTL_MAGIC, 13, __u32)
+#define F2FS_SET_PIN_FILE	1
+static int zram_pin_backing_file(struct zram *zram)
+{
+	struct loop_device *lo = zram->bdev->bd_disk->private_data;
+	struct file *file = lo->lo_backing_file;
+	unsigned int cmd = F2FS_IOC_SET_PIN_FILE;
+	int __user *buf;
+	int set = F2FS_SET_PIN_FILE;
+	int ret;
+
+	buf = compat_alloc_user_space(sizeof(*buf));
+	if (!buf) {
+		pr_info("%s failed to compat_alloc_user_space\n", __func__);
+		return -ENOMEM;
+	}
+	copy_to_user(buf, &set, sizeof(int));
+	ret = file->f_op->unlocked_ioctl(file, cmd, (unsigned long)buf);
+	pr_info("%s ioctl to pin file returned %d\n", __func__, ret);
+
+	return ret;
+}
+
+static void fallocate_block(struct zram *zram, unsigned long blk_idx)
+{
+	struct block_device *bdev = zram->bdev;
+
+	if (!bdev)
+		return;
+
+	mutex_lock(&zram->blk_bitmap_lock);
+	/* check 2MB block bitmap. if unset, fallocate 2MB block at once */
+	if (!test_and_set_bit(blk_idx / NR_FALLOC_PAGES, zram->blk_bitmap)) {
+		struct loop_device *lo = bdev->bd_disk->private_data;
+		struct file *file = lo->lo_backing_file;
+		loff_t pos = (blk_idx & FALLOC_ALIGN_MASK) << PAGE_SHIFT;
+		loff_t len = NR_FALLOC_PAGES << PAGE_SHIFT;
+		int mode = FALLOC_FL_KEEP_SIZE;
+		int ret;
+
+		file_start_write(file);
+		ret = file->f_op->fallocate(file, mode, pos, len);
+		if (ret)
+			pr_err("%s pos %lx failed %d\n", __func__, pos, ret);
+		file_end_write(file);
+	}
+	mutex_unlock(&zram->blk_bitmap_lock);
+}
+
 static int init_lru_writeback(struct zram *zram)
 {
 	struct sched_param param = { .sched_priority = 0 };
 	int ret = 0;
+	int bitmap_sz;
 
 	init_waitqueue_head(&zram->wbd_wait);
 	zram->wb_table = kvzalloc(sizeof(u8) * zram->nr_pages, GFP_KERNEL);
 	if (!zram->wb_table) {
 		ret = -ENOMEM;
 		return ret;
+	}
+
+	/* bitmap for 2MB block */
+	bitmap_sz = (BITS_TO_LONGS(zram->nr_pages) * sizeof(long)) / NR_FALLOC_PAGES;
+	zram->blk_bitmap = kvzalloc(bitmap_sz, GFP_KERNEL);
+	if (!zram->blk_bitmap) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	if (zram_pin_backing_file(zram)) {
+		ret = -EINVAL;
+		goto out;
 	}
 
 	zram->wbd = kthread_run(zram_wbd, zram, "%s_wbd", zram->disk->disk_name);
@@ -368,6 +433,10 @@ static int init_lru_writeback(struct zram *zram)
 
 	return ret;
 out:
+	if (zram->blk_bitmap) {
+		kvfree(zram->blk_bitmap);
+		zram->blk_bitmap = NULL;
+	}
 	kvfree(zram->wb_table);
 	zram->wb_table = NULL;
 	return ret;
@@ -385,6 +454,10 @@ static void stop_lru_writeback(struct zram *zram)
 static void deinit_lru_writeback(struct zram *zram)
 {
 	stop_lru_writeback(zram);
+	if (zram->blk_bitmap) {
+		kvfree(zram->blk_bitmap);
+		zram->blk_bitmap = NULL;
+	}
 	if (zram->wb_table) {
 		kvfree(zram->wb_table);
 		zram->wb_table = NULL;
@@ -1038,6 +1111,8 @@ static int zram_writeback_page(struct zram *zram, struct page *page,
 		ret = -ENOSPC;
 		goto out;
 	}
+	/* fallocate 2MB block if not allocated yet */
+	fallocate_block(zram, blk_idx);
 
 	bio_init(&bio, &bio_vec, 1);
 	bio_set_dev(&bio, zram->bdev);
@@ -2752,6 +2827,7 @@ static int zram_add(void)
 	INIT_LIST_HEAD(&zram->list);
 	spin_lock_init(&zram->list_lock);
 	spin_lock_init(&zram->wb_table_lock);
+	mutex_init(&zram->blk_bitmap_lock);
 #endif
 	queue = blk_alloc_queue(GFP_KERNEL);
 	if (!queue) {

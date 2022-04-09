@@ -721,9 +721,8 @@ static int mfc_dec_s_fmt_vid_out_mplane(struct file *file, void *priv,
 	/* sh_handle: HDR10+ HEVC SEI meta */
 	if (MFC_FEATURE_SUPPORT(dev, dev->pdata->hdr10_plus) &&
 			IS_HEVC_DEC(ctx)) {
-
-		dec->sh_handle_hdr.data_size = sizeof(struct hdr10_plus_meta) * MFC_MAX_BUFFERS;
-		dec->hdr10_plus_info = vmalloc(dec->sh_handle_hdr.data_size);
+		dec->hdr10_plus_info = vmalloc(
+				(sizeof(struct hdr10_plus_meta) * MFC_MAX_BUFFERS));
 		if (!dec->hdr10_plus_info)
 			mfc_err_ctx("[HDR+] failed to allocate HDR10+ information data\n");
 	}

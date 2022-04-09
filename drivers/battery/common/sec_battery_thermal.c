@@ -492,12 +492,13 @@ bool sec_usb_thm_overheatlimit(struct sec_battery_info *battery)
 {
 #if defined(CONFIG_PREVENT_USB_CONN_OVERHEAT)
 	int gap = 0;
-	int bat_thm = battery->temperature;
+	int batt_temp = battery->temperature;
 #endif
+	int usb_temp = battery->usb_temp;
 
 	if (battery->pdata->usb_temp_check_type == SEC_BATTERY_TEMP_CHECK_NONE) {
 		pr_err("%s: USB_THM, Invalid Temp Check Type, usb_thm <- bat_thm\n", __func__);
-		battery->usb_temp = battery->temperature;
+		usb_temp = battery->temperature;
 	}
 
 	if (battery->usb_thm_status == USB_THM_NORMAL) {
@@ -505,19 +506,19 @@ bool sec_usb_thm_overheatlimit(struct sec_battery_info *battery)
 #if defined(CONFIG_DUAL_BATTERY)
 		/* select low temp thermistor */
 		if (battery->temperature > battery->sub_bat_temp)
-			bat_thm = battery->sub_bat_temp;
+			batt_temp = battery->sub_bat_temp;
 #endif
-		if (battery->usb_temp > bat_thm)
-			gap = battery->usb_temp - bat_thm;
+		if (usb_temp > batt_temp)
+			gap = usb_temp - batt_temp;
 #endif
 
-		if (battery->usb_temp >= battery->overheatlimit_threshold) {
+		if (usb_temp >= battery->overheatlimit_threshold) {
 			pr_info("%s: Usb Temp over than %d (usb_thm : %d)\n", __func__,
-					battery->overheatlimit_threshold, battery->usb_temp);
+					battery->overheatlimit_threshold, usb_temp);
 			battery->usb_thm_status = USB_THM_OVERHEATLIMIT;
 			return true;
 #if defined(CONFIG_PREVENT_USB_CONN_OVERHEAT)
-		} else if ((battery->usb_temp >= battery->usb_protection_temp) &&
+		} else if ((usb_temp >= battery->usb_protection_temp) &&
 				(gap >= battery->temp_gap_bat_usb)) {
 			pr_info("%s: Temp gap between Usb temp and Bat temp : %d\n", __func__, gap);
 #if defined(CONFIG_BATTERY_CISD)
@@ -532,7 +533,7 @@ bool sec_usb_thm_overheatlimit(struct sec_battery_info *battery)
 			return false;
 		}
 	} else if (battery->usb_thm_status == USB_THM_OVERHEATLIMIT) {
-		if (battery->usb_temp <= battery->overheatlimit_recovery) {
+		if (usb_temp <= battery->overheatlimit_recovery) {
 			battery->usb_thm_status = USB_THM_NORMAL;
 			return false;
 		} else {
@@ -540,7 +541,7 @@ bool sec_usb_thm_overheatlimit(struct sec_battery_info *battery)
 		}
 #if defined(CONFIG_PREVENT_USB_CONN_OVERHEAT)
 	} else if (battery->usb_thm_status == USB_THM_GAP_OVER) {
-		if (battery->usb_temp < battery->usb_protection_temp) {
+		if (usb_temp < battery->usb_protection_temp) {
 			battery->usb_thm_status = USB_THM_NORMAL;
 			return false;
 		} else {

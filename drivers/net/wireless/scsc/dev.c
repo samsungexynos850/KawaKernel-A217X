@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2012 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2021 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -108,6 +108,11 @@ static int nan_max_ndi_ifaces = 1;
 module_param(nan_max_ndi_ifaces, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(nan_max_ndi_ifaces, "max ndi interface");
 
+static bool disable_nan_mac_random;
+module_param(disable_nan_mac_random, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(disable_nan_mac_random, "Disable NAN mac_randomization: set 1.");
+
+
 #ifdef SCSC_SEP_VERSION
 static int nan_ndp_delay_ms = 550;
 static int nan_ndp_max_delay_ms = 600;
@@ -197,6 +202,12 @@ int slsi_get_nan_ndp_max_time(void)
 
 	return nan_ndp_max_delay_ms;
 }
+
+bool slsi_get_nan_mac_random(void)
+{
+	return !disable_nan_mac_random;
+}
+
 #endif
 
 static int slsi_dev_inetaddr_changed(struct notifier_block *nb, unsigned long data, void *arg)
@@ -239,7 +250,7 @@ static int slsi_dev_inetaddr_changed(struct notifier_block *nb, unsigned long da
 	return 0;
 }
 
-#ifndef CONFIG_SCSC_WLAN_BLOCK_IPV6
+#if IS_ENABLED(CONFIG_IPV6)
 static int slsi_dev_inet6addr_changed(struct notifier_block *nb, unsigned long data, void *arg)
 {
 	struct slsi_dev     *sdev = container_of(nb, struct slsi_dev, inet6addr_notifier);
@@ -336,6 +347,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	init_completion(&sdev->recovery_remove_completion);
 	init_completion(&sdev->recovery_stop_completion);
 	init_completion(&sdev->recovery_completed);
+	init_completion(&sdev->service_fail_started_indication);
 	sdev->recovery_status = 0;
 
 	sdev->term_udi_users         = &term_udi_users;
@@ -373,7 +385,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 		goto err_udi_proc_init;
 	}
 
-#ifndef CONFIG_SCSC_WLAN_BLOCK_IPV6
+#if IS_ENABLED(CONFIG_IPV6)
 	sdev->inet6addr_notifier.notifier_call = slsi_dev_inet6addr_changed;
 	if (register_inet6addr_notifier(&sdev->inet6addr_notifier) != 0) {
 		SLSI_ERR(sdev, "failed to register inet6addr_notifier\n");
@@ -384,7 +396,7 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	sdev->inetaddr_notifier.notifier_call = slsi_dev_inetaddr_changed;
 	if (register_inetaddr_notifier(&sdev->inetaddr_notifier) != 0) {
 		SLSI_ERR(sdev, "failed to register inetaddr_notifier\n");
-#ifndef CONFIG_SCSC_WLAN_BLOCK_IPV6
+#if IS_ENABLED(CONFIG_IPV6)
 		unregister_inet6addr_notifier(&sdev->inet6addr_notifier);
 #endif
 		goto err_cfg80211_registered;
@@ -460,10 +472,9 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 #endif
 	}
 	INIT_WORK(&sdev->recovery_work_on_stop, slsi_failure_reset);
-#ifdef CONFIG_SCSC_WLAN_FAST_RECOVERY
 	INIT_WORK(&sdev->recovery_work, slsi_subsystem_reset);
 	INIT_WORK(&sdev->recovery_work_on_start, slsi_chip_recovery);
-#endif
+	INIT_WORK(&sdev->trigger_wlan_fail_work, slsi_trigger_service_failure);
 	return sdev;
 
 #if CONFIG_SCSC_WLAN_MAX_INTERFACES >= 4
@@ -487,7 +498,7 @@ err_wlan_registered:
 
 err_inetaddr_registered:
 	unregister_inetaddr_notifier(&sdev->inetaddr_notifier);
-#ifndef CONFIG_SCSC_WLAN_BLOCK_IPV6
+#if IS_ENABLED(CONFIG_IPV6)
 	unregister_inet6addr_notifier(&sdev->inet6addr_notifier);
 #endif
 
@@ -530,11 +541,12 @@ void slsi_dev_detach(struct slsi_dev *sdev)
 	complete_all(&sdev->recovery_remove_completion);
 	complete_all(&sdev->recovery_stop_completion);
 	complete_all(&sdev->recovery_completed);
+	complete_all(&sdev->service_fail_started_indication);
 
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Unregister inetaddr_notifier\n");
 	unregister_inetaddr_notifier(&sdev->inetaddr_notifier);
 
-#ifndef CONFIG_SCSC_WLAN_BLOCK_IPV6
+#if IS_ENABLED(CONFIG_IPV6)
 	SLSI_DBG2(sdev, SLSI_INIT_DEINIT, "Unregister inet6addr_notifier\n");
 	unregister_inet6addr_notifier(&sdev->inet6addr_notifier);
 #endif

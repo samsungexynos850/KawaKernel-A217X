@@ -47,13 +47,6 @@ int mfc_mem_get_user_shared_handle(struct mfc_ctx *ctx,
 		goto import_dma_fail;
 	}
 
-	if (handle->dma_buf->size < handle->data_size) {
-		mfc_err_ctx("User-provided dma_buf size(%ld) is smaller than required size(%ld)\n",
-			handle->dma_buf->size, handle->data_size);
-		ret = -EINVAL;
-		goto dma_buf_size_fail;
-	}
-
 	handle->vaddr = dma_buf_vmap(handle->dma_buf);
 	if (handle->vaddr == NULL) {
 		mfc_err_ctx("Failed to get kernel virtual address\n");
@@ -65,8 +58,8 @@ int mfc_mem_get_user_shared_handle(struct mfc_ctx *ctx,
 
 map_kernel_fail:
 	handle->vaddr = NULL;
-dma_buf_size_fail:
 	dma_buf_put(handle->dma_buf);
+
 import_dma_fail:
 	handle->dma_buf = NULL;
 	handle->fd = -1;
@@ -81,7 +74,6 @@ void mfc_mem_cleanup_user_shared_handle(struct mfc_ctx *ctx,
 	if (handle->dma_buf)
 		dma_buf_put(handle->dma_buf);
 
-	handle->data_size = 0;
 	handle->dma_buf = NULL;
 	handle->vaddr = NULL;
 	handle->fd = -1;
@@ -150,7 +142,7 @@ int mfc_mem_ion_alloc(struct mfc_dev *dev,
 	}
 
 	special_buf->vaddr = dma_buf_vmap(special_buf->dma_buf);
-	if (IS_ERR(special_buf->vaddr)) {
+	if (IS_ERR_OR_NULL(special_buf->vaddr)) {
 		mfc_err_dev("Failed to get vaddr (err 0x%p)\n",
 				&special_buf->vaddr);
 		call_dop(dev, dump_and_stop_debug_mode, dev);

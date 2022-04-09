@@ -54,16 +54,14 @@ bool sec_bat_check_step_charging(struct sec_battery_info *battery)
 #if defined(CONFIG_SEC_FACTORY)
 	return false;
 #endif
-
+	if (!battery->step_charging_type)
+		return false;
 #if defined(CONFIG_ENG_BATTERY_CONCEPT)
 	if(battery->test_charge_current)
 		return false;
 	if(battery->test_step_condition <= 100)
 		battery->pdata->step_charging_condition[0] = battery->test_step_condition;
 #endif
-
-	if (!battery->step_charging_type)
-		return false;
 
 	if (battery->step_charging_type & STEP_CHARGING_CONDITION_ONLINE) {
 #if defined(CONFIG_DIRECT_CHARGING)

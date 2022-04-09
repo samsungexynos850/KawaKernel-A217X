@@ -1,1 +1,3 @@
 out/
+.wireguard-fetch-lock
+linux-stable.sh

@@ -28,6 +28,7 @@
 #include <linux/usb/typec/slsi/common/usbpd.h>
 #include <linux/usb/typec/slsi/s2mu106/usbpd-s2mu106.h>
 #include <linux/usb/typec/common/pdic_sysfs.h>
+#include <linux/usb/typec/common/pdic_param.h>
 
 #include <linux/mfd/slsi/s2mu106/s2mu106.h>
 

@@ -801,6 +801,22 @@ config SWAP_ENABLE_READAHEAD
 	  When a page fault occurs, adjacent pages are also paged in
           expecting those pages will be used in near future.
 
+config PAGE_BOOST
+	bool "PAGE_BOOST feature"
+	depends on MMU
+	default y
+	help
+	  Enable this for PAGE_BOOST feature
+
+config PAGE_BOOST_RECORDING
+	bool "PAGE_BOOST recording feature"
+	depends on PAGE_BOOST
+	default y
+	help
+	  Record Everything for the chosen process.
+	  As Android executes an app one by one, only allow 1 recording
+	  at a time.
+
 config GUP_BENCHMARK
 	bool "Enable infrastructure for get_user_pages_fast() benchmarking"
 	default n

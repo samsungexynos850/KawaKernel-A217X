@@ -1709,6 +1709,10 @@ static inline bool may_mandlock(void)
  * unixes. Our API is identical to OSF/1 to avoid making a mess of AMD
  */
 
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+#include <linux/io_record.h>
+#endif
+
 int ksys_umount(char __user *name, int flags)
 {
 	struct path path;
@@ -1722,6 +1726,9 @@ int ksys_umount(char __user *name, int flags)
 	if (!may_mount())
 		return -EPERM;
 
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	forced_init_record();
+#endif
 	if (!(flags & UMOUNT_NOFOLLOW))
 		lookup_flags |= LOOKUP_FOLLOW;
 

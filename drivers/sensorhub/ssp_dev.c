@@ -142,6 +142,7 @@ static void initialize_variable(struct ssp_data *data)
 	for (type = 0 ; type <= RESET_TYPE_MAX ; type++)
 		data->cnt_ssp_reset[type] = 0;
 	data->check_noevent_reset_cnt = -1;
+	data->reset_type = RESET_TYPE_MAX;
 
 	data->last_resume_status = SCONTEXT_AP_STATUS_RESUME;
 
@@ -186,7 +187,7 @@ int open_sensor_calibration_data(struct ssp_data *data)
 #endif
 
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY
-#ifdef CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL
+#if defined(CONFIG_SENSROS_SSP_PROXIMITY_THRESH_CAL) || defined(CONFIG_SENSORS_SSP_PROXIMITY_FACTORY_CROSSTALK_CAL)
 	proximity_open_calibration(data);
 #endif
 #ifdef CONFIG_SENSORS_SSP_PROXIMITY_MODIFY_SETTINGS
@@ -257,14 +258,6 @@ int initialize_mcu(struct ssp_data *data)
 	if (ret < 0) {
 		ssp_errf("get_sensor_scanning_info failed");
 		return FAIL;
-	}
-
-	if (data->cnt_reset == 0) {
-		ret = initialize_indio_dev(&(data->pdev->dev), data);
-		if (ret < 0) {
-			ssp_errf("could not create input device");
-			return FAIL;
-		}
 	}
 
 	ret = get_firmware_rev(data);
@@ -339,11 +332,6 @@ void refresh_task(struct work_struct *work)
 	ssp_infof();
 	data->cnt_reset++;
 	save_reset_info(data);
-
-#ifdef CONFIG_SENSORS_SSP_DUMP
-	if (data->cnt_reset == 0)
-		initialize_ssp_dump(data);
-#endif
 
 	if (data->sensor_spec) {
 		ssp_infof("prev sensor_spec free");
@@ -492,6 +480,21 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 	ssp_info("prox-mode-thresh - %u, %u", data->prox_mode_thresh[PROX_THRESH_HIGH],
 		 data->prox_mode_thresh[PROX_THRESH_LOW]);
 
+#endif
+
+#ifdef CONFIG_SENSORS_SSP_PROXIMITY_FACTORY_CROSSTALK_CAL
+	if (of_property_read_u16(np, "ssp-prox-cal-add-value", &data->prox_cal_add_value))
+		ssp_err("no prox-cal-add-value, set as 0");
+
+	ssp_info("prox-cal-add-value - %u", data->prox_cal_add_value);
+
+	if (of_property_read_u16_array(np, "ssp-prox-cal-thresh", data->prox_cal_thresh, 2))
+		ssp_err("no prox-cal-thresh, set as 0");
+
+	ssp_info("prox-cal-thresh - %u, %u", data->prox_cal_thresh[0], data->prox_cal_thresh[1]);
+
+	data->prox_thresh_default[0] = data->prox_thresh[0];
+	data->prox_thresh_default[1] = data->prox_thresh[1];
 #endif
 
 #endif
@@ -669,6 +672,12 @@ int ssp_probe(struct platform_device *pdev)
 		goto err_sysfs_create;
 	}
 
+	ret = initialize_indio_dev(&(data->pdev->dev), data);
+	if (ret < 0) {
+		ssp_errf("could not create input device");
+		//return FAIL;
+	}
+
 	ret = ssp_scontext_initialize(data);
 	if (ret < 0) {
 		ssp_errf("ssp_scontext_initialize err(%d)", ret);
@@ -682,6 +691,10 @@ int ssp_probe(struct platform_device *pdev)
 		ssp_injection_remove(data);
 		goto err_init_injection;
 	}
+
+#ifdef CONFIG_SENSORS_SSP_DUMP
+	initialize_ssp_dump(data);
+#endif
 
 	data->is_probe_done = true;
 

@@ -27,39 +27,6 @@ static int abc_enabled;
 static int abc_init;
 
 #if IS_ENABLED(CONFIG_OF)
-static int parse_mipi_overflow_data(struct device *dev,
-			  struct abc_platform_data *pdata,
-			  struct device_node *np)
-{
-	struct abc_qdata *cmipi_overflow;
-
-	cmipi_overflow = pdata->mipi_overflow_items;
-	cmipi_overflow->desc = of_get_property(np, "mipi_overflow,label", NULL);
-
-	if (of_property_read_u32(np, "mipi_overflow,threshold_count", &cmipi_overflow->threshold_cnt)) {
-		dev_err(dev, "Failed to get mipi_overflow threshold count: node not exist\n");
-		return -EINVAL;
-	}
-	pr_info("%s: mipi_overflow, threshold_count : %d\n", __func__, cmipi_overflow->threshold_cnt);
-
-	if (of_property_read_u32(np, "mipi_overflow,threshold_time", &cmipi_overflow->threshold_time)) {
-		dev_err(dev, "Failed to get mipi_overflow threshold time: node not exist\n");
-		return -EINVAL;
-	}
-	pr_info("%s: mipi_overflow, threshold_time : %d\n", __func__, cmipi_overflow->threshold_time);
-	cmipi_overflow->buffer.abc_element = kzalloc(sizeof(cmipi_overflow->buffer.abc_element[0]) *
-						(cmipi_overflow->threshold_cnt + 1), GFP_KERNEL);
-
-	if (!cmipi_overflow->buffer.abc_element)
-		return -ENOMEM;
-
-	cmipi_overflow->buffer.size = cmipi_overflow->threshold_cnt + 1;
-	cmipi_overflow->buffer.rear = 0;
-	cmipi_overflow->buffer.front = 0;
-	cmipi_overflow->fail_cnt = 0;
-
-	return 0;
-}
 
 static int parse_gpu_data(struct device *dev,
 			  struct abc_platform_data *pdata,
@@ -166,7 +133,6 @@ static int abc_parse_dt(struct device *dev)
 	struct device_node *gpu_np;
 	struct device_node *gpu_page_np;
 	struct device_node *aicl_np;
-	struct device_node *mipi_overflow_np;
 #if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
 	struct device_node *motto_np;
 #endif
@@ -216,19 +182,6 @@ static int abc_parse_dt(struct device *dev)
 
 	if (aicl_np)
 		parse_aicl_data(dev, pdata, aicl_np);
-
-	mipi_overflow_np = of_find_node_by_name(np, "mipi_overflow");
-	pdata->nMipiOverflow = of_get_child_count(mipi_overflow_np);
-	pdata->mipi_overflow_items = devm_kzalloc(dev,
-					 sizeof(struct abc_qdata), GFP_KERNEL);
-
-	if (!pdata->mipi_overflow_items) {
-		dev_err(dev, "Failed to allocate MIPI Overflow memory\n");
-		return -ENOMEM;
-	}
-
-	if (mipi_overflow_np)
-		parse_mipi_overflow_data(dev, pdata, mipi_overflow_np);
 
 #if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
 	motto_np = of_find_node_by_name(np, "motto");
@@ -292,15 +245,6 @@ static void sec_abc_reset_aicl_buffer(void)
 	pinfo->pdata->aicl_items->fail_cnt = 0;
 }
 
-static void sec_abc_reset_mipi_overflow_buffer(void)
-{
-	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
-
-	pinfo->pdata->mipi_overflow_items->buffer.rear = 0;
-	pinfo->pdata->mipi_overflow_items->buffer.front = 0;
-	pinfo->pdata->mipi_overflow_items->fail_cnt = 0;
-}
-
 static ssize_t store_abc_enabled(struct device *dev,
 				 struct device_attribute *attr,
 				 const char *buf, size_t count)
@@ -327,7 +271,6 @@ static ssize_t store_abc_enabled(struct device *dev,
 			sec_abc_reset_gpu_buffer();
 			sec_abc_reset_gpu_page_buffer();
 			sec_abc_reset_aicl_buffer();
-			sec_abc_reset_mipi_overflow_buffer();
 		}
 
 		abc_enabled = ABC_DISABLED;
@@ -465,7 +408,7 @@ EXPORT_SYMBOL(sec_abc_get_enabled);
 static void sec_abc_work_func(struct work_struct *work)
 {
 	struct abc_info *pinfo = container_of(work, struct abc_info, work);
-	struct abc_qdata *pgpu, *pgpu_page, *paicl, *pmipi_overflow;
+	struct abc_qdata *pgpu, *pgpu_page, *paicl;
 	struct abc_fault_info in, out;
 	struct abc_log_entry *abc_log;
 
@@ -488,8 +431,9 @@ static void sec_abc_work_func(struct work_struct *work)
 
 	/* Caculate current kernel time */
 	ktime = local_clock();
-	ktime_ms = ktime / NSEC_PER_MSEC;
-	ktime_rem = do_div(ktime, NSEC_PER_SEC);
+	ktime_rem = do_div(ktime, NSEC_PER_MSEC);
+	ktime_ms = (unsigned long)ktime;
+	ktime_rem = do_div(ktime, MSEC_PER_SEC);
 
 	/* Caculate current local time */
 	getnstimeofday(&ts);
@@ -556,7 +500,6 @@ static void sec_abc_work_func(struct work_struct *work)
 		pgpu = pinfo->pdata->gpu_items;
 		pgpu_page = pinfo->pdata->gpu_page_items;
 		paicl = pinfo->pdata->aicl_items;
-		pmipi_overflow = pinfo->pdata->mipi_overflow_items;
 		/* GPU fault */
 		if (pgpu->buffer.size && !strncasecmp(event_type, "gpu_fault", 9)) {
 			in.cur_time = (unsigned long)ktime;
@@ -636,32 +579,6 @@ static void sec_abc_work_func(struct work_struct *work)
 					sec_abc_dequeue(&paicl->buffer, &out);
 					ABC_PRINT("cur_time : %lu sec cur_cnt : %d\n", out.cur_time, out.cur_cnt);
 				}
-			}
-		} else if (pmipi_overflow->buffer.size && !strncasecmp(event_type, "mipi_overflow", 13)) { /* mipi overflow */
-			in.cur_time = (unsigned long)ktime;
-			in.cur_cnt = pmipi_overflow->fail_cnt++;
-
-			ABC_PRINT("mipi_overflow fail count : %d\n", pmipi_overflow->fail_cnt);
-			sec_abc_enqueue(&pmipi_overflow->buffer, in);
-
-			/* Check mipi_overflow fault */
-			/* Case 1 : Over threshold count */
-			if (pmipi_overflow->fail_cnt >= pmipi_overflow->threshold_cnt) {
-				if (sec_abc_get_diff_time(&pmipi_overflow->buffer) < pmipi_overflow->threshold_time) {
-					ABC_PRINT("MIPI Overflow fault occurred. Send uevent.\n");
-					kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
-				}
-				pmipi_overflow->fail_cnt = 0;
-				sec_abc_dequeue(&pmipi_overflow->buffer, &out);
-				ABC_PRINT("cur_time : %lu sec cur_cnt : %d\n", out.cur_time, out.cur_cnt);
-			/* Case 2 : Check front and rear node in queue. Because it's occurred within max count */
-			} else if (sec_abc_is_full(&pmipi_overflow->buffer)) {
-				if (sec_abc_get_diff_time(&pmipi_overflow->buffer) < pmipi_overflow->threshold_time) {
-					ABC_PRINT("MIPI Overflow fault occurred. Send uevent.\n");
-					kobject_uevent_env(&sec_abc->kobj, KOBJ_CHANGE, uevent_str);
-				}
-				sec_abc_dequeue(&pmipi_overflow->buffer, &out);
-				ABC_PRINT("cur_time : %lu sec cur_cnt : %d\n", out.cur_time, out.cur_cnt);
 			}
 		} else {
 			/* Others */

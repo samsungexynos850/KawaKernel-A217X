@@ -183,6 +183,8 @@
 					battery,rp_current_abnormal_rp3 = <0x708>;
 					battery,pd_charging_charge_power = <0x3a98>;
 					battery,max_charging_current = <0x960>;
+					battery,store_mode_charging_max = <0x46>;
+					battery,store_mode_charging_min = <0x3c>;
 					battery,wireless_cc_cv = <0x55>;
 					battery,wireless_otg_input_current = <0x384>;
 					battery,age_data = <0x00 0x10fe 0x10b8 0x109a 0x5d 0x12c 0x10ea 0x10a4 0x1086 0x5c 0x190 0x10d6 0x1090 0x1072 0x5b 0x2bc 0x10c2 0x107c 0x105e 0x5a 0x3e8 0x1090 0x104a 0x102c 0x59>;
@@ -190,8 +192,8 @@
 					battery,max_input_current = <0xbb8>;
 					battery,cisd_alg_index = <0x08>;
 					battery,cisd_max_voltage_thr = <0x1388>;
-					battery,ignore_cisd_index = <0x00 0x3c0>;
-					battery,ignore_cisd_index_d = <0x00 0x78>;
+					battery,ignore_cisd_index = <0x00 0x00>;
+					battery,ignore_cisd_index_d = <0x00 0x50>;
 					battery,expired_time = <0x35e8>;
 					battery,recharging_expired_time = <0x1518>;
 					battery,battery_full_capacity = <0x1388>;
