@@ -1071,7 +1071,7 @@ skip_wait:
 err:
 	__set_current_state(TASK_RUNNING);
 	secdbg_dtsk_set_data(DTYPE_NONE, NULL);
-	mutex_remove_waiter(lock, &waiter, current);
+	mutex_remove_waiter(lock, &waiter);
 err_early_kill:
 	spin_unlock(&lock->wait_lock);
 	debug_mutex_free_waiter(&waiter);
