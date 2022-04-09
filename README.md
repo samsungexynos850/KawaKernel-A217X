@@ -1,5 +1,5 @@
 # Kernel Source Code for SM-A217M
-**Based on ~A217MUBU5CUD1~ A217MUBS8CVB2**
+**Based on A217MUBU5CUD1**
 
 ## Features
 * Compiled with Proton Clang 13.0.0
