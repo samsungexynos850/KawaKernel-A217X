@@ -99,8 +99,6 @@ struct zram_stats {
 };
 
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
-#define NR_FALLOC_PAGES 512
-#define FALLOC_ALIGN_MASK (~(NR_FALLOC_PAGES - 1))
 struct zram_wb_header {
 	u32 index;
 	u32 size;
@@ -121,6 +119,7 @@ struct zram_wb_entry {
 	unsigned int size;
 };
 #endif
+
 
 struct zram {
 	struct zram_table_entry *table;
@@ -167,8 +166,6 @@ struct zram {
 	struct list_head list;
 	spinlock_t list_lock;
 	spinlock_t wb_table_lock;
-	unsigned long *blk_bitmap;
-	struct mutex blk_bitmap_lock;
 #endif
 };
 #endif

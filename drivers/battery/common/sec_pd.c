@@ -24,8 +24,6 @@ void (*fp_select_pdo)(int num);
 int (*fp_sec_pd_select_pps)(int num, int ppsVol, int ppsCur);
 int (*fp_sec_pd_get_apdo_max_power)(unsigned int *pdo_pos, unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr);
 int (*fp_pps_enable)(int num, int ppsVol, int ppsCur, int enable);
-int (*fp_count_cisd_pd_data)(unsigned short vid, unsigned short pid);
-
 
 void select_pdo(int num)
 {
@@ -56,11 +54,3 @@ int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, uns
 
 	return -ENOTSUPP;
 }
-
-int sec_pd_register_chg_info_cb(void *cb)
-{
-	fp_count_cisd_pd_data = cb;
-
-	return 0;
-}
-

@@ -13,7 +13,6 @@
 
 static void *platform_data;
 struct ssp_data;
-int no_response_reset_cnt = -2;
 
 /* called from device driver */
 int ssp_device_probe(struct platform_device *pdev)
@@ -105,7 +104,7 @@ void save_ram_dump(void *ssp_data)
 	}
 
 	ssp_infof("");
-	write_ssp_dump_file(data, (char *)ipc_get_base(IPC_REG_DUMP), ipc_get_chub_mem_size(), 0, 1);
+	write_ssp_dump_file(data, (char *)ipc_get_base(IPC_REG_DUMP), ipc_get_chub_mem_size(), 0);
 	contexthub_put_token(ipc);
 }
 
@@ -124,22 +123,12 @@ void ssp_dump_write_file(void *dump_data, int dump_size, int err_type)
 	struct ssp_data *data = get_ssp_data();
 	int dump_type;
 
-	if (err_type == 0) {
-		if (data->reset_type == RESET_TYPE_MAX && data->cnt_reset < 0)
-			dump_type == CHUB_ERR_CHUB_NO_RESPONSE;
-		else
-			dump_type = DUMP_TYPE_BASE + data->reset_type;
-	} else
+	if (err_type == 0 && data->reset_type < RESET_TYPE_MAX)
+		dump_type = DUMP_TYPE_BASE + data->reset_type;
+	else
 		dump_type = err_type;
 
-	if (dump_type == CHUB_ERR_CHUB_NO_RESPONSE) {
-		if (no_response_reset_cnt != data->cnt_reset)
-			no_response_reset_cnt = data->cnt_reset;
-		else
-			return;
-	}
-
-	write_ssp_dump_file(data, (char *)dump_data, dump_size, dump_type, 1);
+	write_ssp_dump_file(data, (char *)dump_data, dump_size, dump_type);
 }
 
 bool is_sensorhub_working(void *ssp_data)

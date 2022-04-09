@@ -466,8 +466,11 @@ void slsi_rx_data_deliver_skb(struct slsi_dev *sdev, struct net_device *dev, str
 			struct ethhdr *ehdr = (struct ethhdr *)(rx_skb->data);
 
 			if (is_multicast_ether_addr(ehdr->h_dest)) {
-				/* For the case of uing NAPI, we need to use GFP_ATOMIC */
+#ifdef CONFIG_SCSC_WLAN_RX_NAPI
 				struct sk_buff *rebroadcast_skb = skb_copy(rx_skb, GFP_ATOMIC);
+#else
+				struct sk_buff *rebroadcast_skb = skb_copy(rx_skb, GFP_KERNEL);
+#endif
 				if (!rebroadcast_skb) {
 					SLSI_WARN(sdev, "Intra BSS: failed to alloc new SKB for broadcast\n");
 				} else {
@@ -522,8 +525,11 @@ void slsi_rx_data_deliver_skb(struct slsi_dev *sdev, struct net_device *dev, str
 						if (other_ndev_vif->peer_sta_record[j] &&
 							other_ndev_vif->peer_sta_record[j]->valid &&
 						    ether_addr_equal(other_ndev_vif->peer_sta_record[j]->address, ehdr->h_source)) {
-							/* For the case of uing NAPI, we need to use GFP_ATOMIC */
+#ifdef CONFIG_SCSC_WLAN_RX_NAPI
 							struct sk_buff *duplicate_skb = skb_copy(rx_skb, GFP_ATOMIC);
+#else
+							struct sk_buff *duplicate_skb = skb_copy(rx_skb, GFP_KERNEL);
+#endif
 							SLSI_NET_DBG2(other_dev, SLSI_RX, "NAN: source address match %pM\n", other_ndev_vif->peer_sta_record[j]->address);
 							if (!duplicate_skb) {
 								SLSI_NET_WARN(other_dev, "NAN: multicast: failed to alloc new SKB\n");

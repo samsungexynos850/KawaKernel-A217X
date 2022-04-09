@@ -110,7 +110,7 @@ static int do_transfer(struct ssp_data *data, struct ssp_msg *msg, int timeout)
 	if (!is_sensorhub_working(data)) {
 		ssp_errf("sensorhub is not working");
 		mutex_unlock(&data->comm_mutex);
-		return -EINVAL;
+		return -EIO;
 	}
 
 	msg->timestamp = get_current_timestamp();
@@ -169,7 +169,7 @@ exit:
 			data->cnt_timeout += (is_ssp_shutdown) ? 0 : 1;
 
 			ssp_errf("cnt_timeout %d, ssp_down %d !!", data->cnt_timeout, is_ssp_shutdown);
-			return -EIO;
+			return -EINVAL;
 		}
 	}
 
@@ -257,30 +257,33 @@ int ssp_send_command(struct ssp_data *data, u8 cmd, u8 type, u8 subcmd, int time
 	ssp_infof("cmd %d type %d subcmd %d send_buf_len %d timeout %d", cmd, type,
 		  subcmd, send_buf_len, timeout);
 
-	status = do_transfer(data, msg, timeout);
-	if (status < 0)
-		ssp_errf("do_transfer error %d", status);
-	else
-		status = 0;
+	if (do_transfer(data, msg, timeout) < 0) {
+		ssp_errf("do_transfer error");
+		status = ERROR;
+	}
 
+	//mutex_lock(&data->cmd_mutex);
 	if (((msg->cmd == CMD_GETVALUE) && (receive_buf != NULL) && ((receive_buf_len != NULL) &&
-	    (msg->length != 0))) && (status >= 0)) {
+	    (msg->length != 0))) && (status != ERROR)) {
 		if (timeout > 0) {
 			*receive_buf = kzalloc(msg->length, GFP_KERNEL);
 			if (!(*receive_buf)) {
 				ssp_errf("kzalloc error");
-				status = -ENOMEM;
+				return -ENOMEM;
 			}
 			*receive_buf_len = msg->length;
 			memcpy(*receive_buf, msg->buffer, msg->length);
 		} else {
 			ssp_errf("CMD_GETVALUE zero timeout");
-			status =  -EINVAL;
+			//mutex_unlock(&data->cmd_mutex);
+			return -EINVAL;
 		}
 	}
-	clean_msg(msg);
 
-	if (status == -EIO) {
+	clean_msg(msg);
+	//mutex_unlock(&data->cmd_mutex);
+
+	if (status < 0) {
 		reset_mcu(data, RESET_TYPE_KERNEL_COM_FAIL);
 		ssp_errf("status=%d", status);
 	}

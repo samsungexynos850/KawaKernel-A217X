@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021 Samsung Electronics Co., Ltd. All Rights Reserved
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd. All Rights Reserved
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2
@@ -10,19 +10,28 @@
 #define _DSMS_TEST_H
 
 /* -------------------------------------------------------------------------- */
-/* macros to allow testing static functions and initialization code */
+/* macros to allow testing initialization code */
 /* -------------------------------------------------------------------------- */
 
 #if defined(DSMS_KUNIT_ENABLED)
 
-#define __kunit_init
-#define __kunit_exit
+#define declare_kunit_init_module(init_function_name)		\
+	extern int init_function_name##_kunit_helper(void)
+
+#define kunit_init_module(init_function_name)			\
+	declare_kunit_init_module(init_function_name);		\
+	static __init int init_function_name(void)		\
+	{							\
+		return init_function_name##_kunit_helper();	\
+	}							\
+	int init_function_name##_kunit_helper(void)
 
 #else
 
-#define __visible_for_testing static
-#define __kunit_init __init
-#define __kunit_exit __init
+#define declare_kunit_init_module(init_function_name)
+
+#define kunit_init_module(init_function_name)			\
+	static __init int init_function_name(void)
 
 #endif /* defined(DSMS_KUNIT_ENABLED) */
 
@@ -32,22 +41,23 @@
 /* -------------------------------------------------------------------------- */
 /* -------------------------------------------------------------------------- */
 
-#if defined(DSMS_KUNIT_ENABLED)
+#if !defined(DSMS_KUNIT_ENABLED)
+
+#define __visible_for_testing static
+
+#else
 
 #include <kunit/mock.h>
-#include <linux/kthread.h>
 #include <linux/slab.h>
 #include <linux/types.h>
+#include <linux/umh.h>
 
 /* -------------------------------------------------------------------------- */
-/* kmalloc and kmalloc_array mock */
+/* kmalloc mock */
 /* -------------------------------------------------------------------------- */
 
 extern void *security_dsms_test_kmalloc_mock(size_t size, gfp_t flags);
-extern void *security_dsms_test_kmalloc_array_mock(size_t n, size_t size, gfp_t flags);
-
 #define kmalloc security_dsms_test_kmalloc_mock
-#define kmalloc_array security_dsms_test_kmalloc_array_mock
 
 /* -------------------------------------------------------------------------- */
 /* dsms_access_control */
@@ -62,32 +72,16 @@ extern struct dsms_policy_entry *find_policy_entry(const char *function_name);
 /* dsms_init */
 /* -------------------------------------------------------------------------- */
 
-extern int __kunit_init dsms_init(void);
-extern void __kunit_exit dsms_exit(void);
+declare_kunit_init_module(dsms_init);
 
 /* -------------------------------------------------------------------------- */
-/* dsms_netlink */
+/* dsms_kernel_api */
 /* -------------------------------------------------------------------------- */
 
-extern atomic_t daemon_ready;
-extern int dsms_send_netlink_message(const char *feature_code,
-				     const char *detail,
-				     int64_t value);
-
-/* -------------------------------------------------------------------------- */
-/* dsms_preboot_buffer */
-/* -------------------------------------------------------------------------- */
-
-struct dsms_message;
-extern atomic_t message_counter;
-extern struct task_struct *sender_thread;
+extern atomic_t list_counter;
 extern struct dsms_message *create_message(const char *feature_code,
-					   const char *detail,
-					   int64_t value);
-extern void destroy_message(struct dsms_message *message);
-extern struct dsms_message_node *create_node(struct dsms_message *message);
-extern void destroy_node(struct dsms_message_node *node);
-extern struct dsms_message *dsms_preboot_buffer_get(void);
+		const char *detail,
+		int64_t value);
 
 /* -------------------------------------------------------------------------- */
 /* dsms_rate_limit */

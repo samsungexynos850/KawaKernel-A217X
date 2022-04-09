@@ -117,6 +117,9 @@ endif
 ifeq ($(CONFIG_SCSC_WLAN_ENHANCED_PKT_FILTER),y)
 ccflags-y += -DCONFIG_SCSC_WLAN_ENHANCED_PKT_FILTER
 endif
+ifeq ($(CONFIG_SCSC_WLAN_BSS_SELECTION),y)
+ccflags-y += -DCONFIG_SCSC_WLAN_BSS_SELECTION
+endif
 
 # ----------------------------------------------------------------------------
 # Building for cfg802.11

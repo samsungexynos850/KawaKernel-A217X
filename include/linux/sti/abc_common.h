@@ -104,6 +104,7 @@ struct abc_platform_data {
 	struct abc_qdata *gpu_items;
 	struct abc_qdata *gpu_page_items;
 	struct abc_qdata *aicl_items;
+	struct abc_qdata *mipi_overflow_items;
 #if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
 	struct abc_motto_data *motto_data;
 #endif
@@ -112,6 +113,7 @@ struct abc_platform_data {
 	unsigned int nGpu;
 	unsigned int nGpuPage;
 	unsigned int nAicl;
+	unsigned int nMipiOverflow;
 };
 
 struct abc_log_entry {

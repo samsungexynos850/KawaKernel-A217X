@@ -2242,15 +2242,14 @@ int is_group_stop(struct is_groupmgr *groupmgr,
 	FIMC_BUG(group->instance >= IS_STREAM_COUNT);
 	FIMC_BUG(group->id >= GROUP_ID_MAX);
 
-	head = group->head;
-	if (!head) {
-		mgwarn("head group is NULL", group, group);
-		return -EINVAL;
+	if (!test_bit(IS_GROUP_START, &group->state)) {
+		mwarn("already group stop", group);
+		return -EPERM;
 	}
 
-	if (!test_bit(IS_GROUP_START, &group->state) &&
-		!test_bit(IS_GROUP_START, &head->state)) {
-		mgwarn("already group stop", group, group);
+	head = group->head;
+	if (head && !test_bit(IS_GROUP_START, &head->state)) {
+		mwarn("already head group stop", group);
 		return -EPERM;
 	}
 
@@ -2300,22 +2299,22 @@ int is_group_stop(struct is_groupmgr *groupmgr,
 				mwarn(" wating for sensor trigger(pc %d)", device, head->pcount);
 			}
 #ifdef ENABLE_SYNC_REPROCESSING
-		} else if (!test_bit(IS_GROUP_OTF_INPUT, &head->state)) {
+		} else if (!test_bit(IS_GROUP_OTF_INPUT, &group->state)) {
 			if (!list_empty(&gtask->sync_list)) {
 				struct is_frame *rframe;
 				rframe = list_first_entry(&gtask->sync_list, struct is_frame, sync_list);
 				list_del(&rframe->sync_list);
-				mgrinfo("flush SYNC capture(%d)\n", head, head, rframe, rframe->index);
-				is_group_kthread_queue_work(&gtask->worker, head, rframe);
+				mgrinfo("flush SYNC capture(%d)\n", group, group, rframe, rframe->index);
+				is_group_kthread_queue_work(&gtask->worker, group, rframe);
 			}
 
-			if (!list_empty(&gtask->preview_list[head->instance])) {
+			if (!list_empty(&gtask->preview_list[group->instance])) {
 				struct is_frame *rframe;
-				atomic_dec(&gtask->preview_cnt[head->instance]);
-				rframe = list_first_entry(&gtask->preview_list[head->instance], struct is_frame, preview_list);
+				atomic_dec(&gtask->preview_cnt[group->instance]);
+				rframe = list_first_entry(&gtask->preview_list[group->instance], struct is_frame, preview_list);
 				list_del(&rframe->preview_list);
-				mgrinfo("flush SYNC preview(%d)\n", head, head, rframe, rframe->index);
-				is_group_kthread_queue_work(&gtask->worker, head, rframe);
+				mgrinfo("flush SYNC preview(%d)\n", group, group, rframe, rframe->index);
+				is_group_kthread_queue_work(&gtask->worker, group, rframe);
 			}
 #endif
 		}
@@ -2336,17 +2335,17 @@ int is_group_stop(struct is_groupmgr *groupmgr,
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_21, flags);
 
 	retry = 150;
-	while (--retry && test_bit(IS_GROUP_SHOT, &head->state)) {
-		mgwarn(" thread stop waiting...(pc %d)", device, head, head->pcount);
+	while (--retry && test_bit(IS_GROUP_SHOT, &group->state)) {
+		mgwarn(" thread stop waiting...(pc %d)", device, group, group->pcount);
 		msleep(20);
 	}
 
 	if (!retry) {
-		mgerr(" waiting(until thread stop) is fail(pc %d)", device, head, head->pcount);
+		mgerr(" waiting(until thread stop) is fail(pc %d)", device, group, group->pcount);
 		errcnt++;
 	}
 
-	child = head;
+	child = group;
 	while (child) {
 		if (test_bit(IS_GROUP_FORCE_STOP, &group->state)) {
 			ret = is_itf_force_stop(device, GROUP_ID(child->id));
@@ -2413,7 +2412,7 @@ int is_group_stop(struct is_groupmgr *groupmgr,
 	/* the count of request should be clear for next streaming */
 	atomic_set(&head->rcount, 0);
 
-	child = head;
+	child = group;
 	while(child) {
 		list_for_each_entry(subdev, &child->subdev_list, list) {
 			if (IS_ERR_OR_NULL(subdev))
@@ -2424,18 +2423,18 @@ int is_group_stop(struct is_groupmgr *groupmgr,
 
 				framemgr = GET_SUBDEV_FRAMEMGR(subdev);
 				if (!framemgr) {
-					mserr("framemgr is NULL", subdev, subdev);
+					mgerr("framemgr is NULL", group, group);
 					goto p_err;
 				}
 
 				retry = 150;
 				while (--retry && framemgr->queued_count[FS_PROCESS]) {
-					mgwarn(" subdev[%d] stop waiting...", device, head, subdev->vid);
+					mgwarn(" subdev[%d] stop waiting...", device, group, subdev->vid);
 					msleep(20);
 				}
 
 				if (!retry) {
-					mgerr(" waiting(subdev stop) is fail", device, head);
+					mgerr(" waiting(subdev stop) is fail", device, group);
 					errcnt++;
 				}
 
@@ -2460,9 +2459,9 @@ int is_group_stop(struct is_groupmgr *groupmgr,
 
 	is_gframe_flush(groupmgr, head);
 
-	if (test_bit(IS_GROUP_OTF_INPUT, &head->state))
-		mginfo(" sensor fcount: %d, fcount: %d\n", device, head,
-			atomic_read(&head->sensor_fcount), head->fcount);
+	if (test_bit(IS_GROUP_OTF_INPUT, &group->state))
+		mginfo(" sensor fcount: %d, fcount: %d\n", device, group,
+			atomic_read(&group->sensor_fcount), group->fcount);
 
 	clear_bit(IS_GROUP_FORCE_STOP, &group->state);
 	clear_bit(IS_SUBDEV_START, &group->leader.state);

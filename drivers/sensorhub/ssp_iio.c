@@ -244,8 +244,6 @@ void report_sensor_data(struct ssp_data *data, int type,
 	ssp_system_check_lock();
 	if (is_system_checking())
 		event_test_cb(type, event->timestamp);
-	if (is_event_order_checking())
-		order_test_cb(type, event->timestamp);
 	ssp_system_check_unlock();
 #endif
 }
