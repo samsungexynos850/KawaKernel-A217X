@@ -11,6 +11,11 @@
 * Overclocked and Underclocked 2210 Mhz and 130 Mhz CPU by Physwizz
 * Overclocked GPU to 1001 Mhz by Physwizz
 
+## Issues
+- Using this kernel on stock rom specifically debloated oneui roms will cause a message to appear on boot
+ Android System: Undo the deletes
+ This issue is not because of my changes but rather samsung's changes. Even an unmodded build of S8 sources causes this message to display.
+
 # Warning
 ![Warning](http://www.clker.com/cliparts/H/Z/0/R/f/S/warning-icon-hi.png)
 
