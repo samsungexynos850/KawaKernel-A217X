@@ -10,6 +10,46 @@ extern int set_freq_limit(unsigned int id, unsigned int freq);
 #define FINGER_ID 2
 #define LIMIT_RELEASE -1
 
+
+void spi_get_ctrldata(struct spi_device *spi)
+{
+
+}
+
+int spi_clk_register(struct spi_clk_setting *clk_setting, struct device *dev)
+{
+	return 0;
+}
+
+int spi_clk_unregister(struct spi_clk_setting *clk_setting)
+{
+	return 0;
+}
+
+int spi_clk_enable(struct spi_clk_setting *clk_setting)
+{
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
+	if (!clk_setting->enabled_clk) {
+		__pm_stay_awake(clk_setting->spi_wake_lock);
+		clk_setting->enabled_clk = true;
+	}
+#endif
+
+	return 0;
+}
+
+int spi_clk_disable(struct spi_clk_setting *clk_setting)
+{
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
+	if (clk_setting->enabled_clk) {
+		__pm_relax(clk_setting->spi_wake_lock);
+		clk_setting->enabled_clk = false;
+	}
+#endif
+
+	return 0;
+}
+
 int cpu_speedup_enable(struct boosting_config *boosting)
 {
 	int retval = 0;
@@ -24,6 +64,7 @@ int cpu_speedup_enable(struct boosting_config *boosting)
 #else
 	pr_debug("FP_CPU_SPEEDUP does not supported\n");
 #endif
+
 	return retval;
 }
 
@@ -41,5 +82,6 @@ int cpu_speedup_disable(struct boosting_config *boosting)
 #else
 	pr_debug("FP_CPU_SPEEDUP does not supported\n");
 #endif
+
 	return retval;
 }
