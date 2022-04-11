@@ -14,7 +14,7 @@
 ## Plans
 - [ ] Update to A217MUBS8CVB2 sources
 - [ ] Switch to BBR congestion algorithm
-- [ ] Implement boeffla wakelock driver
+- [x] Implement boeffla wakelock driver
 - [ ] Reduce log spam
 - [x] Remove "+" sign from kernel name
 - [ ] Permissive kernel variant
