@@ -16,7 +16,7 @@
 - [ ] Switch to BBR congestion algorithm
 - [ ] Implement boeffla wakelock driver
 - [ ] Reduce log spam
-- [ ] Remove "+" sign from kernel name
+- [x] Remove "+" sign from kernel name
 - [ ] Permissive kernel variant
 
 # Warning
