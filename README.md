@@ -6,14 +6,14 @@
 * Enabled Polly optimizations
 * Upstreaming in progress
 * Kernel support for wireguard vpn
-* Default TCP_CONG is WESTWOOD
+* Default TCP_CONG is BBR + fq_codel qdisc
 * ZRam enabled with LZ4 as default compression algorithm
 * Overclocked and Underclocked 2210 Mhz and 130 Mhz CPU by Physwizz
 * Overclocked GPU to 1001 Mhz by Physwizz
 
 ## Plans
 - [ ] Update to A217MUBS8CVB2 sources
-- [ ] Switch to BBR congestion algorithm
+- [x] Switch to BBR congestion algorithm
 - [x] Implement boeffla wakelock driver
 - [ ] Reduce log spam
 - [x] Remove "+" sign from kernel name
