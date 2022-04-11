@@ -11,6 +11,14 @@
 * Overclocked and Underclocked 2210 Mhz and 130 Mhz CPU by Physwizz
 * Overclocked GPU to 1001 Mhz by Physwizz
 
+## Plans
+- [ ] Update to A217MUBS8CVB2 sources
+- [ ] Switch to BBR congestion algorithm
+- [ ] Implement boeffla wakelock driver
+- [ ] Reduce log spam
+- [ ] Remove "+" sign from kernel name
+- [ ] Permissive kernel variant
+
 # Warning
 ![Warning](http://www.clker.com/cliparts/H/Z/0/R/f/S/warning-icon-hi.png)
 
