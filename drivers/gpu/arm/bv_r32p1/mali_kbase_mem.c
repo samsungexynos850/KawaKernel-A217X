@@ -373,6 +373,9 @@ void kbase_remove_va_region(struct kbase_device *kbdev,
 	int merged_back = 0;
 
 	reg_rbtree = reg->rbtree;
+	
+	if (WARN_ON(RB_EMPTY_ROOT(reg_rbtree)))
+		return;
 
 	if (WARN_ON(RB_EMPTY_ROOT(reg_rbtree)))
 		return;
@@ -464,12 +467,6 @@ void kbase_remove_va_region(struct kbase_device *kbdev,
 		}
 		rb_replace_node(&(reg->rblink), &(free_reg->rblink), reg_rbtree);
 	}
-
-	/* This operation is always safe because the function never frees
-	 * the region. If the region has been merged to both front and back,
-	 * then it's the previous region that is supposed to be freed.
-	 */
-	orig_reg->start_pfn = 0;
 
 out:
 	return;
@@ -1627,6 +1624,8 @@ bad_aliased_insert:
 
 bad_insert:
 
+	kbase_mmu_teardown_pages(kctx->kbdev, &kctx->mmu, reg->start_pfn, alloc->pages,
+                                 reg->nr_pages, kctx->as_nr);
 	kbase_remove_va_region(kctx->kbdev, reg);
 
 	return err;
