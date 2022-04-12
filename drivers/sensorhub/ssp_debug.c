@@ -290,6 +290,11 @@ static void debug_work_func(struct work_struct *work)
 		if (data->en_info[type].enabled)
 			print_sensordata(data, type);
 
+#ifdef CONFIG_SENSORS_SSP_MAGNETIC
+	if (data->new_magcal)
+		save_mag_cal_data(data);
+#endif
+
 	if (is_sensorhub_working(data))
 		check_no_event(data);
 }

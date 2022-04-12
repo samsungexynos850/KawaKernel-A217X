@@ -1475,11 +1475,6 @@ static int mxman_start(struct mxman *mxman)
 			length_mifram_heap2,
 			start_dram_section2);
 		miframabox_init(scsc_mx_get_aboxram(mxman->mx), start_dram_section2 + length_mifram_heap2);
-	} else {
-#if 0 /* TODO */
-		/* Junk address is given to abox unless we set it as NULL */
-		miframabox_deinit(scsc_mx_get_aboxram(mxman->mx));
-#endif
 	}
 #else
 	start_dram_section2 = (char *)start_dram + MX_DRAM_SIZE_SECTION_1;

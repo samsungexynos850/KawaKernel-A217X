@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2020 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2021 Samsung Electronics Co., Ltd. All rights reserved
  *
  *****************************************************************************/
 
@@ -24,12 +24,10 @@
 
 
 #define SCSC_RELEASE_PRODUCT 11
-#define SCSC_RELEASE_ITERATION 13
+#define SCSC_RELEASE_ITERATION 19
 #define SCSC_RELEASE_CANDIDATE 0
 
-#define SCSC_RELEASE_POINT 0
-#define SCSC_RELEASE_CUSTOMER 0
+#define SCSC_RELEASE_POINT 4
+#define SCSC_RELEASE_CUSTOMER 1
 
 #endif
-
-

@@ -64,6 +64,7 @@
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 #include <linux/sec_batt.h>
 #endif
+#include <linux/usb/typec/common/pdic_param.h>
 
 struct s2mu106_muic_data *static_data;
 /* Prototypes of the Static symbols of s2mu106-muic */
@@ -1278,6 +1279,10 @@ static int s2mu106_muic_detect_dev_bc1p2(struct s2mu106_muic_data *muic_data)
 	int vbus_value = 0;
 #endif
 
+#if defined(CONFIG_USB_HW_PARAM)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif /* CONFIG_USB_HW_PARAM */
+
 	muic_data->new_dev = ATTACHED_DEV_UNKNOWN_MUIC;
 
 #if defined(CONFIG_MUIC_HV_SUPPORT_POGO_DOCK)
@@ -1422,6 +1427,14 @@ static int s2mu106_muic_detect_dev_bc1p2(struct s2mu106_muic_data *muic_data)
 	}
 
 detect_done:
+
+#if defined(CONFIG_USB_HW_PARAM)
+		if (o_notify &&
+			muic_data->rescan_cnt >= 1 &&
+			muic_data->new_dev != ATTACHED_DEV_TIMEOUT_OPEN_MUIC)
+			inc_hw_param(o_notify, USB_MUIC_BC12_RETRY_SUCCESS_COUNT);
+#endif /* CONFIG_USB_HW_PARAM */
+
 	if (muic_data->new_dev != ATTACHED_DEV_UNKNOWN_MUIC)
 		return S2MU106_DETECT_DONE;
 	else
@@ -1651,10 +1664,10 @@ struct muic_platform_data *muic_pdata = muic_data->pdata;
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 static void s2mu106_muic_set_hiccup_mode(struct s2mu106_muic_data *muic_data, bool en)
 {
-	pr_info("%s en:%d, lpcharge:%d\n", __func__, (int)en, lpcharge);
+	pr_info("%s en:%d, lpcharge:%d\n", __func__, (int)en, is_lpcharge_pdic_param());
 
 #if !defined(CONFIG_SEC_FACTORY)
-	if (!lpcharge) {
+	if (!is_lpcharge_pdic_param()) {
 		muic_data->is_hiccup_mode = en;
 		_s2mu106_muic_sel_path(muic_data, S2MU106_PATH_OPEN);
 	}

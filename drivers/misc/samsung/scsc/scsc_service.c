@@ -480,11 +480,7 @@ void srvman_freeze_services(struct srvman *srvman, struct mx_syserr_decode *syse
 		mxman->notify = true;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
 	reinit_completion(&mxman->recovery_completion);
-#else
-	INIT_COMPLETION(mxman->recovery_completion);
-#endif
 	mutex_unlock(&srvman->service_list_mutex);
 	SCSC_TAG_INFO(MXMAN, "OK\n");
 }
