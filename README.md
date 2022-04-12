@@ -1,5 +1,5 @@
 # Kernel Source Code for SM-A217M
-**Based on A217MUBU5CUD1**
+**Based on A217MUBS8CVB2**
 
 ## Features
 * Compiled with Proton Clang 13.0.0
@@ -12,7 +12,7 @@
 * Overclocked GPU to 1001 Mhz by Physwizz
 
 ## Plans
-- [ ] Update to A217MUBS8CVB2 sources
+- [x] Update to A217MUBS8CVB2 sources
 - [x] Switch to BBR congestion algorithm
 - [x] Implement boeffla wakelock driver
 - [ ] Reduce log spam
