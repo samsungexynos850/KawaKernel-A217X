@@ -218,7 +218,7 @@ bad_insert_output_page:
 				 reg->start_pfn, 1, MCU_AS_NR);
 bad_insert:
 	mutex_lock(&kbdev->csf.reg_lock);
-	kbase_remove_va_region(kbdev, reg);
+	kbase_remove_va_region(kctx->kbdev, reg);
 	mutex_unlock(&kbdev->csf.reg_lock);
 
 	return ret;
