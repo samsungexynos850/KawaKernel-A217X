@@ -1,29 +1,26 @@
-# Kernel Source Code for SM-A217M
+# KawaKernel Source Code for SM-A217M/F
 **Based on A217MUBS8CVB2**
 
 ## Features
 * Compiled with Proton Clang 13.0.0
 * Enabled Polly optimizations
-* Upstreaming in progress
-* Kernel support for wireguard vpn
-* Default TCP_CONG is BBR + fq_codel qdisc
+* Upstreamed with the latest kernel sources from google
+* Kernel support for Wireguard vpn
+* Default TCP Congestion Control: BBR + fq_codel qdisc
+* Enabled ECN negotiation by default 
+* Enabled Kernel Same-page Merging
+* Implemented Boeffla wakelock blocker
 * ZRam enabled with LZ4 as default compression algorithm
-* Overclocked and Underclocked 2210 Mhz and 130 Mhz CPU by Physwizz
-* Overclocked GPU to 1001 Mhz by Physwizz
+* CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
+* GPU: Overclocked to 1001 Mhz
 
 ## Plans
-- [x] Update to A217MUBS8CVB2 sources
-- [x] Switch to BBR congestion algorithm
-- [x] Implement boeffla wakelock driver
-- [ ] Reduce log spam
-- [x] Remove "+" sign from kernel name
-- [ ] Permissive kernel variant
+- [ ] ~~Permissive kernel variant~~ (not needed)
+- [ ] Overclock GPU to 1146+ Mhz
 
 # Warning
 ![Warning](http://www.clker.com/cliparts/H/Z/0/R/f/S/warning-icon-hi.png)
 
-**This kernel is experimental, a lot of dirty work was done to get the kernel working on the device. I will not be responsible for anything that may occur to your device.**
+**While this kernel is somewhat stable, I should warn you that anything that occurs to your device, I will not be responsible for it. You are making the choice to install this kernel onto your device.**
 
-**Releases are only tested to an extent of getting the kernel to boot on the device, features may be broken.**
-
-**I am not a developer, I do not know how to code.**
+**I am not a developer so do not expect me to fix complicated bugs, I do accept pull requests if it is helpful.**
