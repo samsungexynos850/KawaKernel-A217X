@@ -10,6 +10,8 @@
 * Enabled ECN negotiation by default 
 * Enabled Kernel Same-page Merging
 * Implemented Boeffla wakelock blocker
+* Implemented Powersuspend v1.8 driver
+* Disabled CONFIG_AUDIT
 * ZRam enabled with LZ4 as default compression algorithm
 * CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
 * GPU: Overclocked to 1001 Mhz
