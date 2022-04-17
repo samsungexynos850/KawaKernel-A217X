@@ -9,13 +9,19 @@
 * Default TCP Congestion Control: BBR + fq_codel qdisc
 * Enabled ECN negotiation by default 
 * Enabled Kernel Same-page Merging
-* Implemented Boeffla wakelock blocker
-* Implemented Powersuspend v1.8 driver
+* Implemented Boeffla wakelock blocker v1.1.0
+* Implemented Powersuspend v2.0 driver
 * Disabled CONFIG_AUDIT
 * ZRam enabled with LZ4 as default compression algorithm
 * CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
 * GPU: Overclocked to 1001 Mhz
-
+* GPU: High speed frequency is 754 Mhz by default
+* GPU: Controls for voltage, thermal etc
+* GPU: Adaptive power policy
+* Dymanic Fsync
+* Kernelspace battery saver mode
+* Samsung state notifier
+* Boots Android 12 GSIs
 ## Plans
 - [ ] ~~Permissive kernel variant~~ (not needed)
 - [ ] Overclock GPU to 1146+ Mhz
