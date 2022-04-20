@@ -7,9 +7,7 @@ export ARCH=arm64
 
 export LLVM=1
 export PATH="$HOME/toolchains/proton-clang/bin:$PATH"
-export CC=clang
 export CROSS_COMPILE=aarch64-linux-gnu-
-export CLANG_TRIPLE=$HOME/toolchains/gcc-linaro/bin/aarch64-linux-gnu-
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
 
 rm -rf $DEFCONFIG_LOC/.tmp_defconfig
