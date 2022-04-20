@@ -6,12 +6,9 @@ export PLATFORM_VERSION=12
 export ANDROID_MAJOR_VERSION=s
 export ARCH=arm64
 
-# export LLVM=1
-# export PATH="$HOME/toolchains/proton-clang/bin:$PATH"
-# export CROSS_COMPILE=aarch64-linux-gnu-
-export CLANG_TRIPLE=$HOME/toolchains/clang/host/linux-x86/clang-r353983c/bin/aarch64-linux-gnu-
-export CROSS_COMPILE=$HOME/toolchains/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
-export CC=$HOME/toolchains/clang/host/linux-x86/clang-r353983c/bin/clang
+export LLVM=1
+export PATH="$HOME/toolchains/proton-clang/bin:$PATH"
+export CROSS_COMPILE=aarch64-linux-gnu-
 
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
 export DTB_LOC=$(pwd)/out/arch/$ARCH/boot/dts
