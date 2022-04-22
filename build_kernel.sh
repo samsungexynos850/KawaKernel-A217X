@@ -9,6 +9,8 @@ export LLVM=1
 export PATH="$HOME/toolchains/proton-clang/bin:$PATH"
 export CROSS_COMPILE=aarch64-linux-gnu-
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
+export DTB_LOC=$(pwd)/out/arch/$ARCH/boot/dts
+export TOOLS_LOC=$(pwd)/scripts/tools/bin
 
 rm -rf $DEFCONFIG_LOC/.tmp_defconfig
 
@@ -39,3 +41,9 @@ fi
 
 make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y .tmp_defconfig
 make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y
+
+# Build DTB/DTBO img
+echo 'Building DTB/DTBO Image ...'
+$TOOLS_LOC/mkdtboimg.py cfg_create $DTB_LOC/dtb.img --dtb-dir $DTB_LOC/exynos $TOOLS_LOC/dtb.cfg
+$TOOLS_LOC/mkdtboimg.py cfg_create $DTB_LOC/dtbo.img --dtb-dir $DTB_LOC/samsung/a21s $TOOLS_LOC/dtbo.cfg
+echo 'Done!'
