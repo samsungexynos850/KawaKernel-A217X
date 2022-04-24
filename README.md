@@ -18,6 +18,7 @@
 * GPU: Adaptive power policy
 * Backported linux-5.17 lib/LZ4 for ZRam performance
 * Default CPUFREQ Governor: SCHEDUTIL
+* Enabled block i/o tracing for IOReps Prefetching
 
 **Battery savings**
 * Implemented Boeffla wakelock blocker v1.1.0
@@ -47,11 +48,12 @@ With these settings combined with the battery saving features implemented on thi
 ## Building KawaKernel
 **Requirements**
 - A linux machine
-- ccache, make, the basic items for compiling items on linux
-- [proton-clang](https://github.com/kdrag0n/proton-clang)
+- base-devel (arch) or build-essential (debian) packages
+- [proton-clang](https://github.com/physwizz/Toolchains-for-Eureka)
 - The kernel source obviously
 
 **Steps**
+- Rename Toolchains-for-Eureka to proton-clang
 - Place proton-clang folder in $HOME/toolchains/
 - cd into the kernel source
 - Run ./build_kernel.sh
