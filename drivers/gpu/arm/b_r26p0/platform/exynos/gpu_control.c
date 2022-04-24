@@ -50,7 +50,7 @@ unsigned int gpu_pmu_status_local_pwr_mask;
 #define LOCAL_PWR_CFG			gpu_pmu_status_local_pwr_mask
 
 unsigned int gpu_min_override = 377000;
-unsigned int gpu_max_override = 1001000;
+unsigned int gpu_max_override = 1196000;
 
 #ifdef CONFIG_MALI_RT_PM
 static struct exynos_pm_domain *gpu_get_pm_domain(char *g3d_genpd_name)
