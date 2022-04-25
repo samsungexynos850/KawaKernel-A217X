@@ -7,18 +7,20 @@
 * O3_WITH_OFAST_SUB_OPTIONS + Polly optimizations
 
 **Performance**
-* Default TCP Congestion Control: BBR + fq_codel qdisc
-* Enabled ECN negotiation by default 
-* Enabled Kernel Same-page Merging
-* ZRam enabled with LZ4 as default compression algorithm
+* NET: Default TCP Congestion Control: BBR + fq_codel qdisc
+* NET: Enabled ECN negotiation by default 
+* NET: Improved network proformance by using TCP_NODELAY
+* MEM: Enabled Kernel Same-page Merging (off by default)
+* MEM: Backported linux-5.17 lib/LZ4 for ZRam performance
+* MEM: ZRam enabled with LZ4 as default compression algorithm
+* MEM: Enabled block i/o tracing for IOReps Prefetching
 * CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
-* GPU: Overclocked to 1001 Mhz
+* CPU: Implemented SchedTune Assist v3
+* CPU: Default CPUFREQ Governor: SCHEDUTIL
+* GPU: Overclocked to 1001 Mhz (1196 Mhz if you install kernel DTB)
 * GPU: High speed frequency is 754 Mhz by default
 * GPU: Controls for voltage, thermal etc
-* GPU: Adaptive power policy
-* Backported linux-5.17 lib/LZ4 for ZRam performance
-* Default CPUFREQ Governor: SCHEDUTIL
-* Enabled block i/o tracing for IOReps Prefetching
+* GPU: Adaptive power policy (default)
 
 **Battery savings**
 * Implemented Boeffla wakelock blocker v1.1.0
