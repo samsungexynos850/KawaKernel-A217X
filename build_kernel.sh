@@ -11,8 +11,13 @@ export CROSS_COMPILE=aarch64-linux-gnu-
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
 export DTB_LOC=$(pwd)/out/arch/$ARCH/boot/dts
 export TOOLS_LOC=$(pwd)/scripts/tools/bin
+export KAWA_LOC=$(pwd)/Kawa
 
+# Reguardless of clean build or not, remove these files
 rm -rf $DEFCONFIG_LOC/.tmp_defconfig
+rm -rf $KAWA_LOC/boot.img
+rm -rf $KAWA_LOC/AIK-Linux/split_img/boot.img-dtb
+rm -rf $KAWA_LOC/AIK-Linux/split_img/boot.img-kernel
 
 read -p "Clean source? [N] (Y/N): " clean_confirm
 if [[ $clean_confirm == [yY] || $clean_confirm == [yY][eE][sS] ]]; then
@@ -44,6 +49,15 @@ make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y
 
 # Build DTB/DTBO img
 echo 'Building DTB/DTBO Image ...'
-$TOOLS_LOC/mkdtboimg.py cfg_create $DTB_LOC/dtb.img --dtb-dir $DTB_LOC/exynos $TOOLS_LOC/dtb.cfg
-$TOOLS_LOC/mkdtboimg.py cfg_create $DTB_LOC/dtbo.img --dtb-dir $DTB_LOC/samsung/a21s $TOOLS_LOC/dtbo.cfg
+$TOOLS_LOC/mkdtboimg.py cfg_create $DTB_LOC/dtb.img --dtb-dir $DTB_LOC/exynos $KAWA_LOC/dtb.cfg
+$TOOLS_LOC/mkdtboimg.py cfg_create $DTB_LOC/dtbo.img --dtb-dir $DTB_LOC/samsung/a21s $KAWA_LOC/dtbo.cfg
 echo 'Done!'
+
+# TODO: Make this more presentable
+# Copy files to AIK SPLIT_IMG folder
+cp -r $DTB_LOC/dtb.img $KAWA_LOC/AIK-Linux/split_img/boot.img-dtb
+cp -r $DTB_LOC/../Image $KAWA_LOC/AIK-Linux/split_img/boot.img-kernel
+# Build boot.img
+$KAWA_LOC/AIK-Linux/repackimg.sh
+cp -r $KAWA_LOC/AIK-Linux/image-new.img $KAWA_LOC/boot.img
+echo 'Check Kawa folder for boot.img'

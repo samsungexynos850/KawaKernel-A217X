@@ -1,3 +1,8 @@
 out/
 .wireguard-fetch-lock
 linux-stable.sh
+Kawa/AIK-Linux/split_img/boot.img-kernel
+Kawa/AIK-Linux/split_img/boot.img-dtb
+Kawa/AIK-Linux/ramdisk-new.cpio.gz
+Kawa/AIK-Linux/image-new.img
+Kawa/boot.img
