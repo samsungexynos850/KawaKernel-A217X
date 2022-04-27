@@ -18,6 +18,7 @@ rm -rf $DEFCONFIG_LOC/.tmp_defconfig
 rm -rf $KAWA_LOC/boot.img
 rm -rf $KAWA_LOC/AIK-Linux/split_img/boot.img-dtb
 rm -rf $KAWA_LOC/AIK-Linux/split_img/boot.img-kernel
+rm -rf $KAWA_LOC/Flashable/KawaKernel-A217X.zip
 
 read -p "Clean source? [N] (Y/N): " clean_confirm
 if [[ $clean_confirm == [yY] || $clean_confirm == [yY][eE][sS] ]]; then
@@ -59,5 +60,11 @@ cp -r $DTB_LOC/dtb.img $KAWA_LOC/AIK-Linux/split_img/boot.img-dtb
 cp -r $DTB_LOC/../Image $KAWA_LOC/AIK-Linux/split_img/boot.img-kernel
 # Build boot.img
 $KAWA_LOC/AIK-Linux/repackimg.sh
-cp -r $KAWA_LOC/AIK-Linux/image-new.img $KAWA_LOC/boot.img
-echo 'Check Kawa folder for boot.img'
+cp -r $KAWA_LOC/AIK-Linux/image-new.img $KAWA_LOC/Flashable/boot.img
+echo 'Check Kawa/Flashable for boot.img'
+
+# Create flashable zip
+cd $KAWA_LOC/Flashable
+zip -r KawaKernel-A217X.zip *
+cd ../../
+echo 'Check Kawa/Flashable for KawaKernel-A217X.zip'

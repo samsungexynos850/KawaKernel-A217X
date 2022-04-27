@@ -5,4 +5,5 @@ Kawa/AIK-Linux/split_img/boot.img-kernel
 Kawa/AIK-Linux/split_img/boot.img-dtb
 Kawa/AIK-Linux/ramdisk-new.cpio.gz
 Kawa/AIK-Linux/image-new.img
-Kawa/boot.img
+Kawa/Flashable/boot.img
+Kawa/Flashable/KawaKernel-A217X.zip
