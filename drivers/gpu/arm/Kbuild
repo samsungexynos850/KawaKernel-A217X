@@ -24,4 +24,7 @@ ifeq ($(CONFIG_MALI_DDK_VERSION),y)
 	ifeq ($(CONFIG_MALI_BIFROST_R32P0),y)
 		obj-y += b_r32p0/
 	endif
+	ifeq ($(CONFIG_MALI_BIFROST_MIDGARD),y)
+		obj-y += midgard/
+	endif
 endif

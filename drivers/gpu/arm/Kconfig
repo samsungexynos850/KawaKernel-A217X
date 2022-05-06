@@ -20,7 +20,7 @@ choice
 	prompt "version Configuration"
 	depends on MALI_DDK_VERSION
 
-	default MALI_BIFROST_R32P0 if $(PLATFORM_VERSION) >= 11
+	default MALI_BIFROST_MIDGARD if $(PLATFORM_VERSION) >= 11
 	default MALI_BIFROST_R19P0 if $(PLATFORM_VERSION) < 11
 	help
 	  Select the gpu support version.
@@ -39,6 +39,9 @@ config MALI_BIFROST_R31P0
 config MALI_BIFROST_R32P0
 	depends on MALI_DDK_VERSION
 	bool "Bifrost r32p0 driver"
+config MALI_BIFROST_MIDGARD
+	depends on MALI_DDK_VERSION
+	bool "Bifrost midgard driver"
 endchoice
 if MALI_BIFROST_R19P0
 source "drivers/gpu/arm/b_r19p0/Kconfig"
@@ -54,5 +57,8 @@ source "drivers/gpu/arm/b_r31p0/Kconfig"
 endif
 if MALI_BIFROST_R32P0
 source "drivers/gpu/arm/b_r32p0/Kconfig"
+endif
+if MALI_BIFROST_MIDGARD
+source "drivers/gpu/arm/midgard/Kconfig"
 endif
 endmenu
