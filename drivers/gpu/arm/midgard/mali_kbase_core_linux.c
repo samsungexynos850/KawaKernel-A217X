@@ -74,6 +74,9 @@
 #endif
 #include "backend/gpu/mali_kbase_pm_internal.h"
 #include "mali_kbase_dvfs_debugfs.h"
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+#include "mali_kbase_pbha_debugfs.h"
+#endif
 
 #include <linux/module.h>
 #include <linux/init.h>
@@ -3197,6 +3200,10 @@ static ssize_t kbase_show_gpuinfo(struct device *dev,
 		  .name = "Mali-G510" },
 		{ .id = GPU_ID2_PRODUCT_TVAX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G310" },
+		{ .id = GPU_ID2_PRODUCT_TTUX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		  .name = "Mali-TTUX" },
+		{ .id = GPU_ID2_PRODUCT_LTUX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		  .name = "Mali-LTUX" },
 	};
 	const char *product_name = "(Unknown Mali GPU)";
 	struct kbase_device *kbdev;
@@ -4809,7 +4816,7 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 		kbdev->mali_debugfs_directory = debugfs_create_dir("mali",
 					NULL);
 #endif /* MALI_SEC_INTEGRATION */
-	if (!kbdev->mali_debugfs_directory) {
+	if (IS_ERR_OR_NULL(kbdev->mali_debugfs_directory)) {
 		dev_err(kbdev->dev,
 			"Couldn't create mali debugfs directory: %s\n",
 			kbdev->devname);
@@ -4828,8 +4835,7 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 	kbdev->debugfs_ctx_directory = debugfs_create_dir("mem",
 			kbdev->mali_debugfs_directory);
 #endif /* MALI_SEC_INTEGRATION */
-
-	if (!kbdev->debugfs_ctx_directory) {
+	if (IS_ERR_OR_NULL(kbdev->debugfs_ctx_directory)) {
 		dev_err(kbdev->dev, "Couldn't create mali debugfs ctx directory\n");
 		err = -ENOMEM;
 		goto out;
@@ -4837,7 +4843,7 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 
 	kbdev->debugfs_instr_directory = debugfs_create_dir("instrumentation",
 			kbdev->mali_debugfs_directory);
-	if (!kbdev->debugfs_instr_directory) {
+	if (IS_ERR_OR_NULL(kbdev->debugfs_instr_directory)) {
 		dev_err(kbdev->dev, "Couldn't create mali debugfs instrumentation directory\n");
 		err = -ENOMEM;
 		goto out;
@@ -4845,7 +4851,7 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 
 	debugfs_ctx_defaults_directory = debugfs_create_dir("defaults",
 			kbdev->debugfs_ctx_directory);
-	if (!debugfs_ctx_defaults_directory) {
+	if (IS_ERR_OR_NULL(debugfs_ctx_defaults_directory)) {
 		dev_err(kbdev->dev, "Couldn't create mali debugfs ctx defaults directory\n");
 		err = -ENOMEM;
 		goto out;
@@ -4862,6 +4868,8 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 #ifdef CONFIG_MALI_PRFCNT_SET_SELECT_VIA_DEBUG_FS
 	kbase_instr_backend_debugfs_init(kbdev);
 #endif
+	kbase_pbha_debugfs_init(kbdev);
+
 	/* fops_* variables created by invocations of macro
 	 * MAKE_QUIRK_ACCESSORS() above.
 	 */
@@ -5448,11 +5456,18 @@ static int kbase_device_resume(struct device *dev)
 static int kbase_device_runtime_suspend(struct device *dev)
 {
 	struct kbase_device *kbdev = to_kbase_device(dev);
+	int ret = 0;
 
 	if (!kbdev)
 		return -ENODEV;
 
 	dev_dbg(dev, "Callback %s\n", __func__);
+
+#if MALI_USE_CSF
+	ret = kbase_pm_handle_runtime_suspend(kbdev);
+	if (ret)
+		return ret;
+#endif
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 	kbase_pm_metrics_stop(kbdev);
@@ -5471,7 +5486,7 @@ static int kbase_device_runtime_suspend(struct device *dev)
 		kbdev->pm.backend.callback_power_runtime_off(kbdev);
 		dev_dbg(dev, "runtime suspend\n");
 	}
-	return 0;
+	return ret;
 }
 #endif /* KBASE_PM_RUNTIME */
 

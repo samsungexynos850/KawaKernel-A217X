@@ -56,6 +56,7 @@
 #include "backend/gpu/mali_kbase_pm_internal.h"
 #include "backend/gpu/mali_kbase_irq_internal.h"
 #include "mali_kbase_regs_history_debugfs.h"
+#include "mali_kbase_pbha.h"
 
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 #include "arbiter/mali_kbase_arbiter_pm.h"
@@ -297,6 +298,9 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 	err = kbase_ktrace_init(kbdev);
 	if (err)
 		goto term_as;
+	err = kbase_pbha_read_dtb(kbdev);
+	if (err)
+		goto term_ktrace;
 
 	init_waitqueue_head(&kbdev->cache_clean_wait);
 
@@ -324,6 +328,8 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 	}
 	return 0;
 
+term_ktrace:
+	kbase_ktrace_term(kbdev);
 term_as:
 	kbase_device_all_as_term(kbdev);
 dma_set_mask_failed:
@@ -476,6 +482,11 @@ int kbase_device_early_init(struct kbase_device *kbdev)
 	if (err)
 		goto fail_runtime_pm;
 
+	/* This spinlock is initialized before doing the first access to GPU
+	 * registers and installing interrupt handlers.
+	 */
+	spin_lock_init(&kbdev->hwaccess_lock);
+
 	/* Ensure we can access the GPU registers */
 	kbase_pm_register_access_enable(kbdev);
 
@@ -485,10 +496,6 @@ int kbase_device_early_init(struct kbase_device *kbdev)
 	/* We're done accessing the GPU registers for now. */
 	kbase_pm_register_access_disable(kbdev);
 
-	/* This spinlock has to be initialized before installing interrupt
-	 * handlers that require to hold it to process interrupts.
-	 */
-	spin_lock_init(&kbdev->hwaccess_lock);
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 	if (kbdev->arb.arb_if)
 		err = kbase_arbiter_pm_install_interrupts(kbdev);
