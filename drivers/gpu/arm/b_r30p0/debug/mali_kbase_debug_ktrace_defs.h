@@ -124,13 +124,25 @@ enum kbase_ktrace_code {
 };
 
 /*
- * struct kbase_ktrace_backend - backend specific part of a trace message
- *
- * At the very least, this must contain a kbase_ktrace_code_t 'code' member and
- * a kbase_ktrace_flag_t 'flags' member
+ * union kbase_ktrace_backend - backend specific part of a trace message.
+ * At the very least, this must contain a kbase_ktrace_code_t 'code' member
+ * and a kbase_ktrace_flag_t 'flags' inside a "gpu" sub-struct. Should a
+ * backend need several sub structs in its union to optimize the data storage
+ * for different message types, then it can use a "common initial sequence" to
+ * allow 'flags' and 'code' to pack optimally without corrupting them.
+ * Different backends need not share common initial sequences between them, they
+ * only need to ensure they have gpu.flags and gpu.code members, it
+ * is up to the backend then how to order these.
  */
-struct kbase_ktrace_backend;
+union kbase_ktrace_backend;
+
+#endif /* KBASE_KTRACE_TARGET_RBUF */
+
+#if MALI_USE_CSF
+#include "debug/backend/mali_kbase_debug_ktrace_defs_csf.h"
+#else
 #include "debug/backend/mali_kbase_debug_ktrace_defs_jm.h"
+#endif
 
 /**
  * struct kbase_ktrace - object representing a trace message added to trace
