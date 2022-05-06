@@ -48,7 +48,7 @@ extern int set_hmp_boost(int enable);
 #endif
 
 /* MALI_SEC_INTEGRATION */
-#include <mali_uk.h>
+#include <uapi/gpu/arm/midgard/mali_uk.h>
 #define KBASE_REG_CUSTOM_TMEM       (1ul << 19)
 #define KBASE_REG_CUSTOM_PMEM       (1ul << 20)
 

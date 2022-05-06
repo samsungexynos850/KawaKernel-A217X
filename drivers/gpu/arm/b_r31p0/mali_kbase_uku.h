@@ -24,8 +24,8 @@
 #ifndef _KBASE_UKU_H_
 #define _KBASE_UKU_H_
 
-#include "mali_uk.h"
-#include "mali_base_kernel.h"
+#include "uapi/gpu/arm/midgard/mali_uk.h"
+#include "uapi/gpu/arm/midgard/mali_base_kernel.h"
 
 /* This file needs to support being included from kernel and userside (which use different defines) */
 #if defined(CONFIG_MALI_ERROR_INJECT)
