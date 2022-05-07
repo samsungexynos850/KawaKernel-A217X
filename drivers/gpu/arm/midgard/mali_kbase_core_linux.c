@@ -31,6 +31,10 @@
 #include <ipa/mali_kbase_ipa_debugfs.h>
 #endif /* CONFIG_DEVFREQ_THERMAL */
 #endif /* CONFIG_MALI_DEVFREQ */
+#if IS_ENABLED(CONFIG_MALI_NO_MALI)
+#include "backend/gpu/mali_kbase_model_linux.h"
+#include <backend/gpu/mali_kbase_model_dummy.h>
+#endif /* CONFIG_MALI_NO_MALI */
 #include "mali_kbase_mem_profile_debugfs_buf_size.h"
 #include "mali_kbase_mem.h"
 #include "mali_kbase_mem_pool_debugfs.h"
@@ -52,7 +56,6 @@
 #endif
 #include "mali_kbase_hwcnt_context.h"
 #include "mali_kbase_hwcnt_virtualizer.h"
-#include "mali_kbase_hwcnt_legacy.h"
 #include "mali_kbase_kinstr_prfcnt.h"
 #include "mali_kbase_vinstr.h"
 #if MALI_USE_CSF
@@ -60,6 +63,7 @@
 #include "csf/mali_kbase_csf_tiler_heap.h"
 #include "csf/mali_kbase_csf_csg_debugfs.h"
 #include "csf/mali_kbase_csf_cpu_queue_debugfs.h"
+#include "csf/mali_kbase_csf_event.h"
 #endif
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 #include "arbiter/mali_kbase_arbiter_pm.h"
@@ -360,25 +364,6 @@ static void kbase_file_delete(struct kbase_file *const kfile)
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 		kbasep_mem_profile_debugfs_remove(kctx);
 #endif
-
-		/* MALI_SEC_INTEGRATION
-		 * look up context list to set destroying_context
-		 */
-		mutex_lock(&kbdev->kctx_list_lock);
-		list_for_each_entry_safe(lookup, tmp, &kbdev->kctx_list, kctx_list_link) {
-			if (kctx == lookup) {
-				kctx->destroying_context = true;
-			}
-		}
-		mutex_unlock(&kbdev->kctx_list_lock);
-
-		mutex_lock(&kctx->legacy_hwcnt_lock);
-		/* If this client was performing hardware counter dumping and
-		 * did not explicitly detach itself, destroy it now
-		 */
-		kbase_hwcnt_legacy_client_destroy(kctx->legacy_hwcnt_cli);
-		kctx->legacy_hwcnt_cli = NULL;
-		mutex_unlock(&kctx->legacy_hwcnt_lock);
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 		kbase_context_debugfs_term(kctx);
@@ -936,62 +921,6 @@ static int kbase_api_hwcnt_reader_setup(struct kbase_context *kctx,
 	return kbase_vinstr_hwcnt_reader_setup(kctx->kbdev->vinstr_ctx, setup);
 }
 
-static int kbase_api_hwcnt_enable(struct kbase_context *kctx,
-		struct kbase_ioctl_hwcnt_enable *enable)
-{
-	int ret;
-
-	mutex_lock(&kctx->legacy_hwcnt_lock);
-	if (enable->dump_buffer != 0) {
-		/* Non-zero dump buffer, so user wants to create the client */
-		if (kctx->legacy_hwcnt_cli == NULL) {
-			ret = kbase_hwcnt_legacy_client_create(
-				kctx->kbdev->hwcnt_gpu_virt,
-				enable,
-				&kctx->legacy_hwcnt_cli);
-		} else {
-			/* This context already has a client */
-			ret = -EBUSY;
-		}
-	} else {
-		/* Zero dump buffer, so user wants to destroy the client */
-		if (kctx->legacy_hwcnt_cli != NULL) {
-			kbase_hwcnt_legacy_client_destroy(
-				kctx->legacy_hwcnt_cli);
-			kctx->legacy_hwcnt_cli = NULL;
-			ret = 0;
-		} else {
-			/* This context has no client to destroy */
-			ret = -EINVAL;
-		}
-	}
-	mutex_unlock(&kctx->legacy_hwcnt_lock);
-
-	return ret;
-}
-
-static int kbase_api_hwcnt_dump(struct kbase_context *kctx)
-{
-	int ret;
-
-	mutex_lock(&kctx->legacy_hwcnt_lock);
-	ret = kbase_hwcnt_legacy_client_dump(kctx->legacy_hwcnt_cli);
-	mutex_unlock(&kctx->legacy_hwcnt_lock);
-
-	return ret;
-}
-
-static int kbase_api_hwcnt_clear(struct kbase_context *kctx)
-{
-	int ret;
-
-	mutex_lock(&kctx->legacy_hwcnt_lock);
-	ret = kbase_hwcnt_legacy_client_clear(kctx->legacy_hwcnt_cli);
-	mutex_unlock(&kctx->legacy_hwcnt_lock);
-
-	return ret;
-}
-
 static int kbase_api_get_cpu_gpu_timeinfo(struct kbase_context *kctx,
 		union kbase_ioctl_get_cpu_gpu_timeinfo *timeinfo)
 {
@@ -1023,6 +952,17 @@ static int kbase_api_get_cpu_gpu_timeinfo(struct kbase_context *kctx,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_MALI_NO_MALI)
+static int kbase_api_hwcnt_set(struct kbase_context *kctx,
+		struct kbase_ioctl_hwcnt_values *values)
+{
+	gpu_model_set_dummy_prfcnt_sample(
+			(u32 __user *)(uintptr_t)values->data,
+			values->size);
+
+	return 0;
+}
+#endif /* CONFIG_MALI_NO_MALI */
 
 static int kbase_api_disjoint_query(struct kbase_context *kctx,
 		struct kbase_ioctl_disjoint_query *query)
@@ -1485,6 +1425,30 @@ static int kbasep_cs_queue_kick(struct kbase_context *kctx,
 	return kbase_csf_queue_kick(kctx, kick);
 }
 
+static int kbasep_cs_queue_group_create_1_6(
+	struct kbase_context *kctx,
+	union kbase_ioctl_cs_queue_group_create_1_6 *create)
+{
+	union kbase_ioctl_cs_queue_group_create
+		new_create = { .in = {
+				       .tiler_mask = create->in.tiler_mask,
+				       .fragment_mask =
+					       create->in.fragment_mask,
+				       .compute_mask = create->in.compute_mask,
+				       .cs_min = create->in.cs_min,
+				       .priority = create->in.priority,
+				       .tiler_max = create->in.tiler_max,
+				       .fragment_max = create->in.fragment_max,
+				       .compute_max = create->in.compute_max,
+			       } };
+
+	int ret = kbase_csf_queue_group_create(kctx, &new_create);
+
+	create->out.group_handle = new_create.out.group_handle;
+	create->out.group_uid = new_create.out.group_uid;
+
+	return ret;
+}
 static int kbasep_cs_queue_group_create(struct kbase_context *kctx,
 			     union kbase_ioctl_cs_queue_group_create *create)
 {
@@ -1943,28 +1907,20 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				struct kbase_ioctl_hwcnt_reader_setup,
 				kctx);
 		break;
-	case KBASE_IOCTL_HWCNT_ENABLE:
-		KBASE_HANDLE_IOCTL_IN(KBASE_IOCTL_HWCNT_ENABLE,
-				kbase_api_hwcnt_enable,
-				struct kbase_ioctl_hwcnt_enable,
-				kctx);
-		break;
-	case KBASE_IOCTL_HWCNT_DUMP:
-		KBASE_HANDLE_IOCTL(KBASE_IOCTL_HWCNT_DUMP,
-				kbase_api_hwcnt_dump,
-				kctx);
-		break;
-	case KBASE_IOCTL_HWCNT_CLEAR:
-		KBASE_HANDLE_IOCTL(KBASE_IOCTL_HWCNT_CLEAR,
-				kbase_api_hwcnt_clear,
-				kctx);
-		break;
 	case KBASE_IOCTL_GET_CPU_GPU_TIMEINFO:
 		KBASE_HANDLE_IOCTL_INOUT(KBASE_IOCTL_GET_CPU_GPU_TIMEINFO,
 				kbase_api_get_cpu_gpu_timeinfo,
 				union kbase_ioctl_get_cpu_gpu_timeinfo,
 				kctx);
 		break;
+#if IS_ENABLED(CONFIG_MALI_NO_MALI)
+	case KBASE_IOCTL_HWCNT_SET:
+		KBASE_HANDLE_IOCTL_IN(KBASE_IOCTL_HWCNT_SET,
+				kbase_api_hwcnt_set,
+				struct kbase_ioctl_hwcnt_values,
+				kctx);
+		break;
+#endif /* CONFIG_MALI_NO_MALI */
 #ifdef CONFIG_MALI_CINSTR_GWT
 	case KBASE_IOCTL_CINSTR_GWT_START:
 		KBASE_HANDLE_IOCTL(KBASE_IOCTL_CINSTR_GWT_START,
@@ -2018,6 +1974,12 @@ static long kbase_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				kbasep_cs_queue_kick,
 				struct kbase_ioctl_cs_queue_kick,
 				kctx);
+		break;
+	case KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_6:
+		KBASE_HANDLE_IOCTL_INOUT(
+			KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_6,
+			kbasep_cs_queue_group_create_1_6,
+			union kbase_ioctl_cs_queue_group_create_1_6, kctx);
 		break;
 	case KBASE_IOCTL_CS_QUEUE_GROUP_CREATE:
 		KBASE_HANDLE_IOCTL_INOUT(KBASE_IOCTL_CS_QUEUE_GROUP_CREATE,
@@ -2148,7 +2110,7 @@ static ssize_t kbase_read(struct file *filp, char __user *buf, size_t count, lof
 	if (atomic_read(&kctx->event_count))
 		read_event = true;
 	else
-		read_error = kbase_csf_read_error(kctx, &event_data);
+		read_error = kbase_csf_event_read_error(kctx, &event_data);
 
 	if (!read_event && !read_error) {
 		bool dump = kbase_csf_cpu_queue_read_dump_req(kctx,
@@ -2253,7 +2215,7 @@ int kbase_event_pending(struct kbase_context *ctx)
 	WARN_ON_ONCE(!ctx);
 
 	return (atomic_read(&ctx->event_count) != 0) ||
-		kbase_csf_error_pending(ctx) ||
+		kbase_csf_event_error_pending(ctx) ||
 		kbase_csf_cpu_queue_dump_needed(ctx);
 }
 #else
@@ -4012,8 +3974,6 @@ static DEVICE_ATTR(js_ctx_scheduling_mode, S_IRUGO | S_IWUSR,
 		show_js_ctx_scheduling_mode,
 		set_js_ctx_scheduling_mode);
 
-#ifdef MALI_KBASE_BUILD
-
 /* Number of entries in serialize_jobs_settings[] */
 #define NR_SERIALIZE_JOBS_SETTINGS 5
 /* Maximum string length in serialize_jobs_settings[].name */
@@ -4228,7 +4188,6 @@ static ssize_t store_serialize_jobs_sysfs(struct device *dev,
 
 static DEVICE_ATTR(serialize_jobs, 0600, show_serialize_jobs_sysfs,
 		   store_serialize_jobs_sysfs);
-#endif /* MALI_KBASE_BUILD */
 #endif /* !MALI_USE_CSF */
 
 static void kbasep_protected_mode_hwcnt_disable_worker(struct work_struct *data)
@@ -4330,6 +4289,15 @@ void kbase_protected_mode_term(struct kbase_device *kbdev)
 	kfree(kbdev->protected_dev);
 }
 
+#if IS_ENABLED(CONFIG_MALI_NO_MALI)
+static int kbase_common_reg_map(struct kbase_device *kbdev)
+{
+	return 0;
+}
+static void kbase_common_reg_unmap(struct kbase_device * const kbdev)
+{
+}
+#else /* CONFIG_MALI_NO_MALI */
 static int kbase_common_reg_map(struct kbase_device *kbdev)
 {
 	int err = 0;
@@ -4365,6 +4333,7 @@ static void kbase_common_reg_unmap(struct kbase_device * const kbdev)
 		kbdev->reg_size = 0;
 	}
 }
+#endif /* CONFIG_MALI_NO_MALI */
 
 int registers_map(struct kbase_device * const kbdev)
 {
@@ -4682,7 +4651,6 @@ void power_control_term(struct kbase_device *kbdev)
 #endif
 }
 
-#ifdef MALI_KBASE_BUILD
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 
 static void trigger_reset(struct kbase_device *kbdev)
@@ -4973,7 +4941,6 @@ void kbase_device_debugfs_term(struct kbase_device *kbdev)
 	debugfs_remove_recursive(kbdev->mali_debugfs_directory);
 }
 #endif /* CONFIG_DEBUG_FS */
-#endif /* MALI_KBASE_BUILD */
 
 int kbase_device_coherency_init(struct kbase_device *kbdev)
 {
@@ -5366,10 +5333,8 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		dev_set_drvdata(kbdev->dev, NULL);
 		kbase_device_free(kbdev);
 	} else {
-#ifdef MALI_KBASE_BUILD
 		dev_info(kbdev->dev,
 			"Probed as %s\n", dev_name(kbdev->mdev.this_device));
-#endif /* MALI_KBASE_BUILD */
 		kbase_increment_device_id();
 #ifdef CONFIG_MALI_ARBITER_SUPPORT
 		mutex_lock(&kbdev->pm.lock);
@@ -5394,7 +5359,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
  *
  * @dev:  The device to suspend
  *
- * Return: A standard Linux error code
+ * Return: A standard Linux error code on failure, 0 otherwise.
  */
 static int kbase_device_suspend(struct device *dev)
 {
@@ -5410,7 +5375,10 @@ static int kbase_device_suspend(struct device *dev)
 	if (!platform)
 		return -ENODEV;
 
-	kbase_pm_suspend(kbdev);
+	if (kbase_pm_suspend(kbdev)) {
+		dev_warn(kbdev->dev, "Abort suspend as GPU suspension failed");
+		return -EBUSY;
+	}
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 	kbase_pm_metrics_stop(kbdev);
@@ -5672,6 +5640,7 @@ MODULE_VERSION(MALI_RELEASE_NAME " (UK version " \
 		__stringify(BASE_UK_VERSION_MAJOR) "." \
 		__stringify(BASE_UK_VERSION_MINOR) ")");
 MODULE_SOFTDEP("pre: memory_group_manager");
+MODULE_INFO(import_ns, "DMA_BUF");
 
 #define CREATE_TRACE_POINTS
 /* Create the trace points (otherwise we just get code to call a tracepoint) */
