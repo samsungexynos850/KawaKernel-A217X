@@ -57,8 +57,8 @@ static int kbasep_gpu_memory_seq_show(struct seq_file *sfile, void *data)
 		mutex_lock(&kbdev->kctx_list_lock);
 		list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 			/* output the memory usage and cap for each kctx
-			* opened on this device
-			*/
+			 * opened on this device
+			 */
 			seq_printf(sfile, "  %s-0x%pK %10u | tgid=%10d | pid=%10d  | name=%20s\n",
 				"kctx",
 				kctx,
@@ -94,18 +94,13 @@ static const struct file_operations kbasep_gpu_memory_debugfs_fops = {
  */
 void kbasep_gpu_memory_debugfs_init(struct kbase_device *kbdev)
 {
-	debugfs_create_file("gpu_memory", S_IRUGO,
+	debugfs_create_file("gpu_memory", 0444,
 			kbdev->mali_debugfs_directory, NULL,
 			&kbasep_gpu_memory_debugfs_fops);
-	return;
 }
-
 #else
 /*
  * Stub functions for when debugfs is disabled
  */
-void kbasep_gpu_memory_debugfs_init(struct kbase_device *kbdev)
-{
-	return;
-}
+void kbasep_gpu_memory_debugfs_init(struct kbase_device *kbdev) {}
 #endif

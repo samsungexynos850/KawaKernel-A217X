@@ -2303,19 +2303,19 @@ static ssize_t show_kernel_sysfs_gpu_model(struct kobject *kobj, struct kobj_att
 		unsigned id;
 		char *name;
 	} gpu_product_id_names[] = {
-		{ .id = GPU_ID2_PRODUCT_TMIX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		{ .id = GPU_ID2_PRODUCT_TMIX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G71" },
-		{ .id = GPU_ID2_PRODUCT_THEX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		{ .id = GPU_ID2_PRODUCT_THEX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G72" },
-		{ .id = GPU_ID2_PRODUCT_TSIX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		{ .id = GPU_ID2_PRODUCT_TSIX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G51" },
-		{ .id = GPU_ID2_PRODUCT_TNOX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		{ .id = GPU_ID2_PRODUCT_TNOX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G76" },
-		{ .id = GPU_ID2_PRODUCT_TDVX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		{ .id = GPU_ID2_PRODUCT_TDVX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G31" },
-		{ .id = GPU_ID2_PRODUCT_TGOX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		{ .id = GPU_ID2_PRODUCT_TGOX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G52" },
-		{ .id = GPU_ID2_PRODUCT_TTRX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		{ .id = GPU_ID2_PRODUCT_TTRX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-G77" },
 	};
 	const char *product_name = "(Unknown Mali GPU)";
@@ -2329,8 +2329,8 @@ static ssize_t show_kernel_sysfs_gpu_model(struct kobject *kobj, struct kobj_att
 		return -ENODEV;
 
 	gpu_id = kbdev->gpu_props.props.raw_props.gpu_id;
-	product_id = gpu_id >> GPU_ID_VERSION_PRODUCT_ID_SHIFT;
-	product_id_mask = GPU_ID2_PRODUCT_MODEL >> GPU_ID_VERSION_PRODUCT_ID_SHIFT;
+	product_id = gpu_id >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT;
+	product_id_mask = GPU_ID2_PRODUCT_MODEL >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT;
 
 	for (i = 0; i < ARRAY_SIZE(gpu_product_id_names); ++i) {
                 const struct gpu_product_id_name *p = &gpu_product_id_names[i];
