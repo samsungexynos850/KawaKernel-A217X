@@ -267,7 +267,7 @@ int kbase_timeline_io_acquire(struct kbase_device *kbdev, u32 flags)
 	}
 
 	if (ret >= 0)
-		timeline->last_acquire_time = ktime_get();
+		timeline->last_acquire_time = ktime_get_raw();
 
 	return ret;
 }
