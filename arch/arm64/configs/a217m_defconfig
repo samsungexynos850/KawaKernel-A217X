@@ -1,4 +1,0 @@
-
-# A217M device specific configuration
-
-CONFIG_DM_VERITY=y

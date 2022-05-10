@@ -1,8 +1,6 @@
 #!/bin/bash
 
 clear
-export PLATFORM_VERSION=11
-export ANDROID_MAJOR_VERSION=r
 export ARCH=arm64
 
 export LLVM=1
@@ -31,19 +29,22 @@ else
 fi
 clear
 
-read -p $'Choose device:\x0a1) SM-A217M\x0a2) SM-A217F\x0aSelection: ' device_selection
-if [[ $device_selection == 1 ]]; then
+cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
+
+read -p $'Choose version:\x0a1) Android 12+\x0a2) Android 11+\x0aSelection: ' ver_selection
+if [[ $ver_selection == 1 ]]; then
     clear
-    echo "Selected SM-A217M"
-    cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
-    cat $DEFCONFIG_LOC/a217m_defconfig >> $DEFCONFIG_LOC/.tmp_defconfig
-elif [[ $device_selection == 2 ]]; then
+    echo "Selected Android 12+"
+    export PLATFORM_VERSION=12
+    export ANDROID_MAJOR_VERSION=s
+elif [[ $ver_selection == 2 ]]; then
     clear
-    echo "Selected SM-A217F"
-    cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
+    echo "Selected Android 11+"
+    export PLATFORM_VERSION=11
+    export ANDROID_MAJOR_VERSION=r
 else
     clear
-    echo $'You have not selected a valid device!\x0aQuit'
+    echo $'You have not selected a valid version!\x0aQuit'
 fi
 
 make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y .tmp_defconfig
