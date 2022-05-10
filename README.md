@@ -14,6 +14,7 @@
 * MEM: Backported linux-5.17 lib/LZ4 for ZRam performance
 * MEM: ZRam enabled with LZ4 as default compression algorithm
 * MEM: Enabled block i/o tracing for IOReps Prefetching
+* MEM: Implemented Simple Low Memory Killer
 * CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
 * CPU: Implemented SchedTune Assist v3
 * CPU: Default CPUFREQ Governor: SCHEDUTIL
@@ -21,6 +22,8 @@
 * GPU: High speed frequency is 754 Mhz by default
 * GPU: Controls for voltage, thermal etc
 * GPU: Adaptive power policy (default)
+* GPU: Updated drivers to R37P0 (A12 variant only)
+* RANDOM: Implemented SRANDOM and it is enabled by default
 
 **Battery savings**
 * Implemented Boeffla wakelock blocker v1.1.0
