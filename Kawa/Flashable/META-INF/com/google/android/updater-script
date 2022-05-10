@@ -1,4 +1,4 @@
-show_progress(1, 15);
+show_progress(0, 0);
 ui_print("------------------------");
 ui_print("Flashing KawaKernel v1.3");
 ui_print("------------------------");
@@ -15,7 +15,7 @@ ui_print("-   Chip: exynos3830   -");
 ui_print("                        ");
 ui_print("------------------------");
 package_extract_file("boot.img", "/dev/block/platform/12100000.dwmmc0/by-name/boot");
-show_progress(1, 15);
 ui_print("Remember to reflash you ramdisk mods");
 ui_print("e.g Magisk after installing this kernel!");
 ui_print("Enjoy using KawaKenel :)");
+show_progress(100, 0);
