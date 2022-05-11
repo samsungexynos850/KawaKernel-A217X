@@ -19,6 +19,16 @@ rm -rf $KAWA_LOC/AIK-Linux/split_img/boot.img-kernel
 rm -rf $KAWA_LOC/Flashable/KawaKernel-A217X.zip
 rm -rf $DTB_LOC/../Image
 
+read -p "Clean source? [N] (Y/N): " clean_confirm
+if [[ $clean_confirm == [yY] || $clean_confirm == [yY][eE][sS] ]]; then
+    echo "Cleaning source ..."
+    make clean && make mrproper
+    rm -rf $(pwd)/out
+else
+    echo "Source will not be cleaned for this build."
+fi
+clear
+
 cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
 
 read -p $'Choose version:\x0a1) Android 12+\x0a2) Android 11+\x0aSelection: ' ver_selection
@@ -37,18 +47,6 @@ else
     echo $'You have not selected a valid version!\x0aQuit'
 fi
 
-read -p "Clean source? [N] (Y/N): " clean_confirm
-if [[ $clean_confirm == [yY] || $clean_confirm == [yY][eE][sS] ]]; then
-    echo "Cleaning source ..."
-    rm -rf $(pwd)/out
-    make clean && make mrproper
-else
-    echo "Source will not be cleaned for this build."
-fi
-clear
-
-echo "Building kernel ..."
-
 make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y .tmp_defconfig
 make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y
 if [ ! -e $DTB_LOC/../Image ]; then
@@ -63,6 +61,7 @@ $TOOLS_LOC/mkdtboimg.py cfg_create $DTB_LOC/dtb.img --dtb-dir $DTB_LOC/exynos $K
 $TOOLS_LOC/mkdtboimg.py cfg_create $DTB_LOC/dtbo.img --dtb-dir $DTB_LOC/samsung/a21s $KAWA_LOC/dtbo.cfg
 echo 'Done!'
 
+# TODO: Make this more presentable
 # Copy files to AIK SPLIT_IMG folder
 cp -r $DTB_LOC/dtb.img $KAWA_LOC/AIK-Linux/split_img/boot.img-dtb
 cp -r $DTB_LOC/../Image $KAWA_LOC/AIK-Linux/split_img/boot.img-kernel
