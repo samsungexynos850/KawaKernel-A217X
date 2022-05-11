@@ -14,15 +14,15 @@
 * MEM: Backported linux-5.17 lib/LZ4 for ZRam performance
 * MEM: ZRam enabled with LZ4 as default compression algorithm
 * MEM: Enabled block i/o tracing for IOReps Prefetching
-* MEM: Implemented Simple Low Memory Killer
+* MEM: Implemented Simple Low Memory Killer (GSI variant only)
 * CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
 * CPU: Implemented SchedTune Assist v3
 * CPU: Default CPUFREQ Governor: SCHEDUTIL
-* GPU: Overclocked to 1001 Mhz (1196 Mhz if you install kernel DTB)
+* GPU: Overclocked to 1196 Mhz
 * GPU: High speed frequency is 754 Mhz by default
 * GPU: Controls for voltage, thermal etc
 * GPU: Adaptive power policy (default)
-* GPU: Updated drivers to R37P0 (A12 variant only)
+* GPU: Updated drivers to R37P0
 * RANDOM: Implemented SRANDOM and it is enabled by default
 
 **Battery savings**
@@ -63,12 +63,10 @@ With these settings combined with the battery saving features implemented on thi
 - cd into the kernel source
 - Run ./build_kernel.sh
 - Preferredly answer yes to clean build
-- Select what device you are going to build
 
 ## Installing KawaKernel from compiled source
 **Steps**
-- Check $SRC/out/arch/arm64/boot for 'Image' file when compiling is done
-- Insert Image file in KawaKernel.zip file (found in releases)
+- Check $SRC/Kawa/Flashable/KawaKernel-A217X.zip file when compiling is done
 - Flash the zip with a custom recovery
 
 # Warning
