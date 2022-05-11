@@ -25,4 +25,4 @@
 # Where xxx is the platform name is the name set in MALI_PLATFORM_NAME
 #
 
-source "drivers/gpu/arm/midgard/platform/exynos/Kconfig"
+source "drivers/gpu/arm/b_r37p0/platform/exynos/Kconfig"

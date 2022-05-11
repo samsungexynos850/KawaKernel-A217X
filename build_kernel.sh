@@ -31,20 +31,22 @@ else
 fi
 clear
 
-read -p $'Choose device:\x0a1) SM-A217M\x0a2) SM-A217F\x0aSelection: ' device_selection
-if [[ $device_selection == 1 ]]; then
-    clear
-    echo "Selected SM-A217M"
-    cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
-    cat $DEFCONFIG_LOC/a217m_defconfig >> $DEFCONFIG_LOC/.tmp_defconfig
-elif [[ $device_selection == 2 ]]; then
-    clear
-    echo "Selected SM-A217F"
-    cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
-else
-    clear
-    echo $'You have not selected a valid device!\x0aQuit'
-fi
+cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
+
+#read -p $'Choose device:\x0a1) SM-A217M\x0a2) SM-A217F\x0aSelection: ' device_selection
+#if [[ $device_selection == 1 ]]; then
+#    clear
+#    echo "Selected SM-A217M"
+#    cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
+#    cat $DEFCONFIG_LOC/a217m_defconfig >> $DEFCONFIG_LOC/.tmp_defconfig
+#elif [[ $device_selection == 2 ]]; then
+#    clear
+#    echo "Selected SM-A217F"
+#    cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
+#else
+#    clear
+#    echo $'You have not selected a valid device!\x0aQuit'
+#fi
 
 make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y .tmp_defconfig
 make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y
