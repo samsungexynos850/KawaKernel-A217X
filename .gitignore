@@ -7,3 +7,4 @@ Kawa/AIK-Linux/ramdisk-new.cpio.gz
 Kawa/AIK-Linux/image-new.img
 Kawa/Flashable/boot.img
 Kawa/Flashable/KawaKernel-A217X.zip
+arch/arm64/configs/.tmp_defconfig
