@@ -708,6 +708,11 @@ else
 KBUILD_CFLAGS   += -O2
 endif
 
+KBUILD_CFLAGS	+= $(call cc-option, -march=armv8-a+crypto+crc,)
+ifeq ($(CONFIG_SOC_EXYNOS3830), y)
+KBUILD_CFLAGS	+= $(call cc-option, -mcpu=cortex-a55+crypto+crc,)
+endif
+
 # CCACHE Flags
 KBUILD_CFLAGS 	+= $(call cc-disable-warning,maybe-uninitialized,) \
 		   $(call cc-disable-warning,unused-variable,) \
