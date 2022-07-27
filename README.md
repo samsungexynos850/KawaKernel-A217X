@@ -6,8 +6,7 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 
 ## Features
 
-### TODO
-* [ ] Find new way of overclocking GPU
+**I recommend using ThunderTweaks to change kernel settings**
 
 **Performance**
 * [x] NET: Default TCP Congestion Control: BBR + fq_codel qdisc
@@ -18,8 +17,7 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * [x] MEM: KSM enabled (turned off by default)
 * [x] CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
 * [x] CPU: Default CPUFREQ Governor: SCHEDUTIL
-* [ ] GPU: Overclocked to 1196 Mhz
-* [ ] GPU: Controls for voltage, thermal etc
+* [x] GPU: Overclocked to 1196 Mhz
 * [x] GPU: High speed frequency is 754 Mhz by default
 * [x] GPU: Adaptive power policy (default)
 * [x] RANDOM: Implemented SRANDOM and it is enabled by default
@@ -37,3 +35,5 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * [x] Disabled Samsung Knox
 * [x] Disabled some of DEBUGFS
 * [x] Kernel support for Wireguard vpn
+* [x] DriveDroid Support
+* [x] Prerooted with Magisk
