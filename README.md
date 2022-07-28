@@ -8,32 +8,49 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 
 **I recommend using ThunderTweaks to change kernel settings**
 
+**Compiler**
+* Azure Clang compiler (Clang 15)
+* Polly optimization flags
+* Exynos 3830 optimization flags
+
 **Performance**
-* [x] NET: Default TCP Congestion Control: BBR + fq_codel qdisc
-* [x] NET: Enabled ECN negotiation by default
-* [x] NET: Improved network proformance by using TCP_NODELAY
-* [x] MEM: Backported linux-5.17 lib/LZ4
-* [x] MEM: ZRam enabled with ZSTD as default compression algorithm
-* [x] MEM: KSM enabled (turned off by default)
-* [x] CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
-* [x] CPU: Default CPUFREQ Governor: SCHEDUTIL
-* [x] GPU: Overclocked to 1196 Mhz
-* [x] GPU: High speed frequency is 754 Mhz by default
-* [x] GPU: Adaptive power policy (default)
-* [x] RANDOM: Implemented SRANDOM and it is enabled by default
-* [x] SCHED: Implemented SchedTune Assist
+* NET: Default TCP Congestion Control: BBR + fq_codel qdisc
+* NET: Enabled ECN negotiation by default
+* NET: Improved network proformance by using TCP_NODELAY
+* MEM: Backported linux-5.17 lib/LZ4
+* MEM: ZRam enabled with ZSTD as default compression algorithm
+* MEM: KSM enabled (turned off by default)
+* CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
+* CPU: Default CPUFREQ Governor: SCHEDUTIL
+* GPU: Overclocked to 1196 Mhz
+* GPU: High speed frequency is 754 Mhz by default
+* GPU: Adaptive power policy (default)
+* RANDOM: Implemented SRANDOM and it is enabled by default
+* SCHED: Implemented SchedTune Assist
 
 **Battery savings**
-* [x] Implemented Boeffla wakelock blocker v1.1.0
-* [x] Implemented Powersuspend v2.0 driver
-* [x] Dymanic Fsync
-* [x] Kernelspace battery saver mode
-* [x] Samsung state notifier
+* Implemented Boeffla wakelock blocker v1.1.0
+* Implemented Powersuspend v2.0 driver
+* Dymanic Fsync
+* Kernelspace battery saver mode
+* Samsung state notifier
 
 **Misc**
-* [x] Disabled SELinux audit logs
-* [x] Disabled Samsung Knox
-* [x] Disabled some of DEBUGFS
-* [x] Kernel support for Wireguard vpn
-* [x] DriveDroid Support
-* [x] Prerooted with Magisk
+* Disabled SELinux audit logs
+* Disabled Samsung Knox
+* Disabled some of DEBUGFS
+* Kernel support for Wireguard vpn
+* Mass storage support (DriveDroid, etc)
+* Prerooted with Magisk
+
+## Download
+* [KawaKernel A12](https://github.com/DozNaka/KawaKernel-A217X/releases/latest)
+* [KawaKernel A11 (EOL)](https://github.com/DozNaka/KawaKernel-A217X/releases/tag/KawaKernel-v1.3.1)
+
+## Installation
+* Follow instructions and install [TWRP](https://github.com/DozNaka/exynos3830-a21s-twrp/releases)
+* Press install button then find "KawaKernel-A217X.zip"
+* Proceed to flash
+* Boot
+
+**Join our [Telegram](https://t.me/+NkphbKPxiB8xZjY9) group to get updates about our device**
