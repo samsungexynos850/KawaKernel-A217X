@@ -7,7 +7,7 @@ export ANDROID_MAJOR_VERSION=s
 export ARCH=arm64
 
 export LLVM=1
-export PATH="$HOME/toolchains/proton-clang/bin:$PATH"
+export PATH="$HOME/toolchains/azure-clang/bin:$PATH"
 export CROSS_COMPILE=aarch64-linux-gnu-
 
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
