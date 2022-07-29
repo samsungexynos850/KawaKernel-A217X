@@ -31,22 +31,20 @@ else
 fi
 clear
 
-cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
-
-#read -p $'Choose variant:\x0a1) GSI\x0a2) ONEUI\x0aSelection: ' device_selection
-#if [[ $device_selection == 1 ]]; then
-#    clear
-#    echo "Selected GSI"
-#    cat $DEFCONFIG_LOC/gsi_defconfig >> $DEFCONFIG_LOC/.tmp_defconfig
-#elif [[ $device_selection == 2 ]]; then
-#    clear
-#    echo "Selected ONEUI"
-#    cat $DEFCONFIG_LOC/oneui_defconfig >> $DEFCONFIG_LOC/.tmp_defconfig
-#else
-#    clear
-#    echo $'You have not selected a valid variant!\x0aQuit'
-#    exit 0;
-#fi
+read -p $'Choose variant:\x0a1) Android\x0a2) Recovery\x0aSelection: ' device_selection
+if [[ $device_selection == 1 ]]; then
+    clear
+    echo "Selected Android"
+    cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
+elif [[ $device_selection == 2 ]]; then
+    clear
+    echo "Selected Recovery"
+    cat $DEFCONFIG_LOC/twrp_slim_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
+else
+    clear
+    echo $'You have not selected a valid variant!\x0aQuit'
+    exit 0;
+fi
 
 echo 'Building Kernel ...'
 make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w CONFIG_SECTION_MISMATCH_WARN_ONLY=y .tmp_defconfig
