@@ -31,7 +31,7 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 **Battery savings**
 * Implemented Boeffla wakelock blocker v1.1.0
 * Implemented Powersuspend v2.0 driver
-* Dymanic Fsync
+* Dynamic Fsync
 * Kernelspace battery saver mode
 * Samsung state notifier
 
@@ -48,7 +48,7 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * [KawaKernel A11 (EOL)](https://github.com/DozNaka/KawaKernel-A217X/releases/tag/KawaKernel-v1.3.1)
 
 ## Installation
-* Follow instructions and install [TWRP](https://github.com/DozNaka/exynos3830-a21s-twrp/releases)
+* Follow instructions and install [TWRP](https://github.com/DozNaka/android_device_samsung_a21s/releases)
 * Press install button then find "KawaKernel-A217X.zip"
 * Proceed to flash
 * Boot
