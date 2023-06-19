@@ -81,10 +81,7 @@ bool gpex_clock_get_unlock_freqs_status()
 {
 	return clk_info.unlock_freqs;
 }
-/*******************************************
- * static helper functions
- ******************************************/
-static int gpex_clock_update_config_data_from_dt()
+int gpex_clock_update_config_data_from_dt()
 {
 	dt_clock_item *dt_clock_table = gpexbe_devicetree_get_clock_table();
 	int ret = 0;
@@ -128,7 +125,9 @@ static int gpex_clock_update_config_data_from_dt()
 
 	return 0;
 }
-
+/*******************************************
+ * static helper functions
+ ******************************************/
 static int set_clock_using_calapi(int clk)
 {
 	int ret = 0;
