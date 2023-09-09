@@ -12,7 +12,6 @@ export CROSS_COMPILE=aarch64-linux-gnu-
 
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
 export DTB_LOC=$(pwd)/out/arch/$ARCH/boot/dts
-export TOOLS_LOC=$(pwd)/Kawa/tools/bin
 export KAWA_LOC=$(pwd)/Kawa
 
 # Reguardless of clean build or not, remove these files
@@ -57,8 +56,8 @@ fi
 
 # Build DTB/DTBO img
 echo 'Building DTB/DTBO Image ...'
-$TOOLS_LOC/mkdtboimg.py cfg_create $DTB_LOC/dtb.img --dtb-dir $DTB_LOC/exynos $KAWA_LOC/dtb.cfg
-$TOOLS_LOC/mkdtboimg.py cfg_create $DTB_LOC/dtbo.img --dtb-dir $DTB_LOC/samsung/a21s $KAWA_LOC/dtbo.cfg
+$KAWA_LOC/mkdtimg cfg_create $DTB_LOC/dtb.img $KAWA_LOC/dtb.cfg -d $DTB_LOC/exynos
+$KAWA_LOC/mkdtimg cfg_create $DTB_LOC/dtbo.img $KAWA_LOC/dtbo.cfg -d $DTB_LOC/samsung/a21s
 echo 'Done!'
 
 # Build boot.img
