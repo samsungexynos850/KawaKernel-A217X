@@ -1,6 +1,6 @@
 show_progress(0, 0);
 ui_print("------------------------");
-ui_print("Flashing KawaKernel v2.2");
+ui_print("Flashing KawaKernel v2.3");
 ui_print("------------------------");
 ui_print("                        ");
 ui_print("- Maintainer: @DozNaka -");
@@ -16,5 +16,5 @@ ui_print("                        ");
 ui_print("------------------------");
 package_extract_file("boot.img", "/dev/block/platform/12100000.dwmmc0/by-name/boot");
 ui_print("                        ");
-ui_print("Thank you for using Kawa");
+ui_print("Thank you for using KawaKernel!");
 show_progress(100, 0);

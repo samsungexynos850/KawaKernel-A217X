@@ -25,7 +25,6 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * GPU: Overclocked to 1196 Mhz
 * GPU: High speed frequency is 754 Mhz by default
 * GPU: Adaptive power policy (default)
-* RANDOM: Implemented SRANDOM and it is enabled by default
 * SCHED: Implemented SchedTune Assist
 
 **Battery savings**
