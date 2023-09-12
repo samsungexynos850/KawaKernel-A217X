@@ -1,5 +1,5 @@
 # KawaKernel Source Code for SM-A217M/F
-**Based on A217MUBUADVL2**
+**Based on A217MUBUADWE2**
 
 ## About
 KawaKernel is a performance oriented kernel tuned for pushing as much performance as possible from the device.
@@ -18,7 +18,7 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * NET: Enabled ECN negotiation by default
 * NET: Improved network proformance by using TCP_NODELAY
 * MEM: Backported linux-5.17 lib/LZ4
-* MEM: ZRam enabled with ZSTD as default compression algorithm
+* MEM: ZRam enabled with LZ4 as default compression algorithm
 * MEM: KSM enabled (turned off by default)
 * CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
 * CPU: Default CPUFREQ Governor: SCHEDUTIL
@@ -40,7 +40,7 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * Disabled some of DEBUGFS
 * Kernel support for Wireguard vpn
 * Mass storage support (DriveDroid, etc)
-* Prerooted with Magisk
+* Prerooted with KernelSU
 
 ## Download
 * [KawaKernel A12](https://github.com/DozNaka/KawaKernel-A217X/releases/latest)
