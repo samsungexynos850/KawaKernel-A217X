@@ -30,12 +30,17 @@ else
 fi
 clear
 
-read -p $'Choose variant:\x0a1) Android\x0a2) Recovery\x0aSelection: ' device_selection
+read -p $'Choose variant:\x0a1) Android (Standard)\x0a2) Android (Permissive)\x0a3) Recovery\x0aSelection: ' device_selection
 if [[ $device_selection == 1 ]]; then
     clear
-    echo "Selected Android"
+    echo "Selected Android (Standard)"
     cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
 elif [[ $device_selection == 2 ]]; then
+    clear
+    echo "Selected Android (Permissive)"
+    cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
+    cat $DEFCONFIG_LOC/permissive_defconfig >> $DEFCONFIG_LOC/.tmp_defconfig
+elif [[ $device_selection == 3 ]]; then
     clear
     echo "Selected Recovery"
     cat $DEFCONFIG_LOC/twrp_slim_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
