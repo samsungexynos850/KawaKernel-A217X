@@ -1,4 +1,5 @@
 out/
+toolchain/
 .wireguard-fetch-lock
 linux-stable.sh
 Kawa/AIK-Linux/split_img/boot.img-kernel
