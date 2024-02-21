@@ -40,6 +40,7 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * Disabled some of DEBUGFS
 * Kernel support for Wireguard vpn
 * Mass storage support (DriveDroid, etc)
+* Can boot OneUI 6 ROMs
 * Prerooted with KernelSU
 
 ## Download
