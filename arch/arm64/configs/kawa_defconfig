@@ -5107,6 +5107,12 @@ CONFIG_SEC_AUTO_INPUT=y
 # CONFIG_SEC_KUNIT is not set
 
 #
+# KernelSU
+#
+CONFIG_KSU=y
+# CONFIG_KSU_DEBUG is not set
+
+#
 # MUIC configs
 #
 CONFIG_USE_MUIC=y
