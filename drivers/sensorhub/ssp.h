@@ -26,17 +26,21 @@
 #include "ssp_platform.h"
 #include "ssp_factory.h"
 
+#undef pr_info
+#define pr_info(fmt, ...) \
+		no_printk("[SSP] " fmt "\n", ##__VA_ARGS__)
+
 #define ssp_dbg(fmt, ...) do { \
-	pr_debug("[SSP] " fmt "\n", ##__VA_ARGS__); \
+	no_printk("[SSP] " fmt "\n", ##__VA_ARGS__); \
 	} while (0)
 
 #define ssp_info(fmt, ...) do { \
-	pr_info("[SSP] " fmt "\n", ##__VA_ARGS__); \
+	no_printk("[SSP] " fmt "\n", ##__VA_ARGS__); \
 	} while (0)
 
 #define ssp_conditional(condition, fmt, ...) do { \
 	if (condition) \
-		pr_info("[SSP] " fmt "\n", ##__VA_ARGS__); \
+		no_printk("[SSP] " fmt "\n", ##__VA_ARGS__); \
 	} while (0)
 
 #define ssp_err(fmt, ...) do { \
@@ -44,11 +48,11 @@
 	} while (0)
 
 #define ssp_dbgf(fmt, ...) do { \
-	pr_debug("[SSP] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
+	no_printk("[SSP] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
 	} while (0)
 
 #define ssp_infof(fmt, ...) do { \
-	pr_info("[SSP] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
+	no_printk("[SSP] %20s(%4d): " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
 	} while (0)
 
 #define ssp_errf(fmt, ...) do { \
