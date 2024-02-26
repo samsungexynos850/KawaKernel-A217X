@@ -417,7 +417,7 @@ CONFIG_COMPAT=y
 #
 # Power management options
 #
-CONFIG_BOEFFLA_WL_BLOCKER=y
+# CONFIG_BOEFFLA_WL_BLOCKER is not set
 CONFIG_STATE_NOTIFIER=y
 CONFIG_POWERSUSPEND=y
 # CONFIG_POWERSUSPEND_DEBUG is not set
@@ -5103,6 +5103,12 @@ CONFIG_SEC_AUTO_INPUT=y
 # KUnit support
 #
 # CONFIG_SEC_KUNIT is not set
+
+#
+# KernelSU
+#
+# CONFIG_KSU is not set
+# CONFIG_KSU_DEBUG is not set
 
 #
 # MUIC configs
