@@ -21,11 +21,12 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * MEM: ZRam enabled with LZ4 as default compression algorithm
 * MEM: KSM enabled (turned off by default)
 * CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
+* CPU: Undervolted by -25mV
 * CPU: Default CPUFREQ Governor: SCHEDUTIL
 * GPU: Overclocked to 1196 Mhz
 * GPU: High speed frequency is 754 Mhz by default
 * GPU: Adaptive power policy (default)
-* SCHED: Implemented SchedTune Assist
+* SCHED: Implemented Capacity Aware Superset Scheduler
 
 **Battery savings**
 * Implemented Boeffla wakelock blocker v1.1.0
@@ -38,10 +39,14 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * Disabled SELinux audit logs
 * Disabled Samsung Knox
 * Disabled some of DEBUGFS
+* Disabled some log spam
 * Kernel support for Wireguard vpn
 * Mass storage support (DriveDroid, etc)
 * Can boot OneUI 6 ROMs
 * Prerooted with KernelSU
+* SCHED: Implemented SchedTune Assist
+
+*And many more*
 
 ## Download
 * [KawaKernel A12](https://github.com/DozNaka/KawaKernel-A217X/releases/latest)
