@@ -74,7 +74,7 @@ static int s2mu106_pm_write_reg(struct s2mu106_pmeter_data *pmeter, u8 reg, u8 v
 	u8 buf = 0;
 
 	s2mu106_read_reg(pmeter->i2c, reg, &buf);
-	pr_info("%s addr:%#x, val:%#x->%#x\n", __func__, reg, buf, value);
+	pr_debug("%s addr:%#x, val:%#x->%#x\n", __func__, reg, buf, value);
 #endif
 	ret = s2mu106_write_reg(pmeter->i2c, reg, value);
 
@@ -90,7 +90,7 @@ static int s2mu106_pm_enable(struct s2mu106_pmeter_data *pmeter,
 
 	/* Default PM mode = continuous */
 	if (mode == REQUEST_RESPONSE_MODE) {
-		pr_info("%s PM mode : Request Response mode (RR)\n", __func__);
+		pr_debug("%s PM mode : Request Response mode (RR)\n", __func__);
 		addr1 = S2MU106_PM_REQ_BOX_RR1;
 		addr2 = S2MU106_PM_REQ_BOX_RR2;
 	}
@@ -116,7 +116,7 @@ static int s2mu106_pm_enable(struct s2mu106_pmeter_data *pmeter,
 	s2mu106_pm_write_reg(pmeter, addr1, data1);
 	s2mu106_pm_write_reg(pmeter, addr2, data2);
 
-	pr_info("%s data1 : 0x%2x, data2 0x%2x\n", __func__, data1, data2);
+	pr_debug("%s data1 : 0x%2x, data2 0x%2x\n", __func__, data1, data2);
 	return 0;
 }
 
@@ -140,7 +140,7 @@ static void s2mu106_pm_set_gpadc_mode(struct s2mu106_pmeter_data *pmeter,
 	}
 
 	if (w_val != r_val) {
-		pr_info("%s mode:%d, reg_val(%#x->%#x)\n", __func__, mode, r_val, w_val);
+		pr_debug("%s mode:%d, reg_val(%#x->%#x)\n", __func__, mode, r_val, w_val);
 		s2mu106_pm_write_reg(pmeter, S2MU106_PM_CTRL4, w_val);
 	}
 }
@@ -156,7 +156,7 @@ static void s2mu106_pm_set_gpadc_hyst_lev(struct s2mu106_pmeter_data *pmeter,
 	w_val |= (new_hyst_lev << HYST_LEV_VGPADC_SHIFT);
 
 	if (w_val != r_val) {
-		pr_info("%s new_hyst_lev:%d, reg_val(%#x->%#x)\n", __func__,
+		pr_debug("%s new_hyst_lev:%d, reg_val(%#x->%#x)\n", __func__,
 			new_hyst_lev, r_val, w_val);
 		s2mu106_pm_write_reg(pmeter, S2MU106_PM_HYST_LEVEL4, w_val);
 	}
@@ -165,7 +165,7 @@ static void s2mu106_pm_set_gpadc_hyst_lev(struct s2mu106_pmeter_data *pmeter,
 
 static void s2mu106_pm_factory(struct s2mu106_pmeter_data *pmeter)
 {
-	pr_info("%s, FACTORY Enter, Powermeter off\n", __func__);
+	pr_debug("%s, FACTORY Enter, Powermeter off\n", __func__);
 	s2mu106_pm_write_reg(pmeter, S2MU106_PM_CO_MASK1, 0xFF);
 	s2mu106_pm_write_reg(pmeter, S2MU106_PM_CO_MASK2, 0xFF);
 }
@@ -273,7 +273,7 @@ static int _s2mu106_pm_get_gpadc_code(struct s2mu106_pmeter_data *pmeter)
 	code = ((data1 << 4) | (data2 >> 4));
 
 #if i2c_debug
-	pr_info("%s code:%d\n", __func__, code);
+	pr_debug("%s code:%d\n", __func__, code);
 #endif
 
 	return code;
@@ -308,7 +308,7 @@ static int s2mu106_pm_get_vgpadc_extern(struct s2mu106_pmeter_data *pmeter)
 		size = sizeof(str) - strlen(str);
 	}
 	vgpadc = buf[5];
-	pr_info("%s %s(mV)\n", __func__, str);
+	pr_debug("%s %s(mV)\n", __func__, str);
 
 	s2mu106_pm_set_gpadc_mode(pmeter, PM_RMODE);
 	s2mu106_pm_set_gpadc_hyst_lev(pmeter, HYST_LEV_VGPADC_DEFALUT);
@@ -584,7 +584,7 @@ static void s2mu106_pm_set_gpadc_co_en(struct s2mu106_pmeter_data *pmeter,
 		w_val = (r_val & ~S2MU106_PM_REQ_BOX_CO1_VGPADCC);
 
 	if (w_val != r_val) {
-		pr_info("%s en:%d, reg_val(%#x->%#x)\n", __func__, en, r_val, w_val);
+		pr_debug("%s en:%d, reg_val(%#x->%#x)\n", __func__, en, r_val, w_val);
 		s2mu106_pm_write_reg(pmeter, S2MU106_PM_REQ_BOX_CO1, w_val);
 	}
 }
@@ -638,7 +638,7 @@ static void s2mu106_pm_mask_irq(struct s2mu106_pmeter_data *pmeter,
 
 	if (r_val != w_val) {
 		s2mu106_pm_write_reg(pmeter, addr, w_val);
-		pr_info("%s addr(%#x), val(%#x->%#x)\n", __func__, addr, r_val, w_val);
+		pr_debug("%s addr(%#x), val(%#x->%#x)\n", __func__, addr, r_val, w_val);
 	}
 }
 
@@ -668,7 +668,7 @@ static int s2mu106_pm_gpadc_check_water_extern(struct s2mu106_pmeter_data *pmete
 	char str[MAX_BUF_SIZE] = {0,};
 
 	mutex_lock(&pmeter->water_mutex);
-	pr_info("%s water_status(%s)\n", __func__, pm_water_status_str[pmeter->water_status]);
+	pr_debug("%s water_status(%s)\n", __func__, pm_water_status_str[pmeter->water_status]);
 
 	if (pmeter->water_status == PM_WATER_IDLE) {
 		ret = true;
@@ -689,7 +689,7 @@ static int s2mu106_pm_gpadc_check_water_extern(struct s2mu106_pmeter_data *pmete
 			snprintf(str+strlen(str), size, "%d, ", vgpadc[i]);
 			size = sizeof(str) - strlen(str);
 		}
-		pr_info("%s %s(mV)\n", __func__, str);
+		pr_debug("%s %s(mV)\n", __func__, str);
 
 		if (IS_VGPADC_WATER(vgpadc[4])) {
 			ret = true;
@@ -722,7 +722,7 @@ static int s2mu106_pm_gpadc_check_facwater_extern(struct s2mu106_pmeter_data *pm
 	if (rgpadc >= 0 && rgpadc <= 300)
 		res = true;
 
-	pr_info("%s res:%d, gpadc:%d(kohm)\n", __func__, res, rgpadc);
+	pr_debug("%s res:%d, gpadc:%d(kohm)\n", __func__, res, rgpadc);
 
 	s2mu106_pm_set_gpadc_mode(pmeter, PM_MODE_NONE);
 
@@ -735,7 +735,7 @@ static void s2mu106_pm_set_water_status(struct s2mu106_pmeter_data *pmeter,
 							enum pm_water_status new_status)
 {
 	if (pmeter->water_status != new_status) {
-		pr_info("%s water_status(%s->%s)\n", __func__,
+		pr_debug("%s water_status(%s->%s)\n", __func__,
 			pm_water_status_str[pmeter->water_status], pm_water_status_str[new_status]);
 		pmeter->water_status = new_status;
 	}
@@ -772,7 +772,7 @@ static void s2mu106_pm_water_handler(struct s2mu106_pmeter_data *pmeter)
 	union power_supply_propval value;
 
 	__pm_stay_awake(pmeter->water_work_ws);
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	s2mu106_pm_set_water_status(pmeter, PM_WATER_IDLE);
 
@@ -812,7 +812,7 @@ static void s2mu106_pm_water_work(struct work_struct *work)
 	}
 
 	pmeter->water_work_call_cnt++;
-	pr_info("%s called_cnt:%d, workqueue_itv:%d(sec)\n", __func__,
+	pr_debug("%s called_cnt:%d, workqueue_itv:%d(sec)\n", __func__,
 		pmeter->water_work_call_cnt, S2MU106_PM_DRY_TIMER_SEC);
 
 	s2mu106_pm_set_water_status(pmeter, PM_DRY_DETECTING);
@@ -853,7 +853,7 @@ static void s2mu106_pm_dry_handler(struct s2mu106_pmeter_data *pmeter)
 {
 	union power_supply_propval value;
 
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	s2mu106_pm_set_water_status(pmeter, PM_DRY_IDLE);
 
@@ -880,7 +880,7 @@ static bool s2mu106_pm_gpadc_water_detector(struct s2mu106_pmeter_data *pmeter, 
 	int loop_cnt = PM_WATER_DET_CNT_LOOP;
 	int threshold_cnt = pmeter->water_det_cnt[pmeter->water_sen];
 
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 	if (mode == PM_WATER_SALT) {
 		loop_cnt = PM_SOURCE_WATER_DET_CNT_LOOP;
 		threshold_cnt = PM_SOURCE_WATER_CNT;
@@ -905,7 +905,7 @@ static bool s2mu106_pm_gpadc_water_detector(struct s2mu106_pmeter_data *pmeter, 
 		s2mu106_pm_set_gpadc_mode(pmeter, PM_RMODE);
 	}
 
-	pr_info("%s res:%d %s(kohm)\n", __func__, res, str);
+	pr_debug("%s res:%d %s(kohm)\n", __func__, res, str);
 	if (res >= threshold_cnt)
 		ret = true;
 
@@ -938,7 +938,7 @@ static bool s2mu106_pm_gpadc_dry_detector(struct s2mu106_pmeter_data *pmeter)
 		s2mu106_pm_set_gpadc_mode(pmeter, PM_RMODE);
 	}
 
-	pr_info("%s res:%d %s(kohm)\n", __func__, r_res, str1);
+	pr_debug("%s res:%d %s(kohm)\n", __func__, r_res, str1);
 	if (r_res < pmeter->water_det_cnt[pmeter->water_sen])
 		goto exit;
 
@@ -958,7 +958,7 @@ static bool s2mu106_pm_gpadc_dry_detector(struct s2mu106_pmeter_data *pmeter)
 		size2 = sizeof(str2) - strlen(str2);
 	}
 
-	pr_info("%s res:%d %s(mV)\n", __func__, v_res, str2);
+	pr_debug("%s res:%d %s(mV)\n", __func__, v_res, str2);
 	if (v_res >= pmeter->water_det_cnt[pmeter->water_sen])
 		ret = true;
 exit:
@@ -973,7 +973,7 @@ static bool s2mu106_pm_gpadc_check_water(struct s2mu106_pmeter_data *pmeter)
 	union power_supply_propval value;
 	int ret = 0;
 
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	value.intval = false;
 	s2mu106_pm_psy_set_property(pmeter->pdic_psy,
@@ -1029,7 +1029,7 @@ static void s2mu106_pm_late_init_work(struct work_struct *work)
 	int ret = 0;
 #endif
 
-	pr_info("%s dev_drv_version(%#x)\n", __func__, DEV_DRV_VERSION);
+	pr_debug("%s dev_drv_version(%#x)\n", __func__, DEV_DRV_VERSION);
 
 	pmeter->pdic_psy = power_supply_get_by_name("s2mu106-usbpd");
 	if (!pmeter->muic_psy)
@@ -1059,7 +1059,7 @@ static void s2mu106_pm_pwr_off_chk_work(struct work_struct *work)
 
 	int vchgin = s2mu106_pm_get_vchgin(pmeter);
 
-	pr_info("%s water_status(%s), vchgin(%d)\n", __func__,
+	pr_debug("%s water_status(%s), vchgin(%d)\n", __func__,
 		pm_water_status_str[pmeter->water_status], vchgin);
 
 	if (!pmeter->muic_psy)
@@ -1082,7 +1082,7 @@ static irqreturn_t s2mu106_pm_gpadc_isr(int irq, void *data)
 #endif
 
 	code = _s2mu106_pm_get_gpadc_code(pmeter);
-	pr_info("%s gpadc interrupt: water_status(%s), code(%d)\n",
+	pr_debug("%s gpadc interrupt: water_status(%s), code(%d)\n",
 		__func__, pm_water_status_str[pmeter->water_status], code);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
@@ -1104,7 +1104,7 @@ static irqreturn_t s2mu106_pm_gpadc_isr(int irq, void *data)
 
 		msleep(600);
 		if (pmeter->is_pwr_off_water) {
-			pr_info("%s(line:%d) is_pwr_off_water(%d)\n",
+			pr_debug("%s(line:%d) is_pwr_off_water(%d)\n",
 				__func__, __LINE__, pmeter->is_pwr_off_water);
 			goto exit;
 		} else if (pmeter->water_status == PM_WATER_IDLE) {
@@ -1115,12 +1115,12 @@ static irqreturn_t s2mu106_pm_gpadc_isr(int irq, void *data)
 		s2mu106_pm_psy_get_property(pmeter->pdic_psy,
 			(enum power_supply_property)POWER_SUPPLY_LSI_PROP_POWER_ROLE, &value);
 		vchgin = s2mu106_pm_get_vchgin(pmeter);
-		pr_info("%s vchgin(%d) pd_role(%d)\n", __func__, vchgin, value.intval);
+		pr_debug("%s vchgin(%d) pd_role(%d)\n", __func__, vchgin, value.intval);
 
 		if (IS_VBUS_LOW(vchgin) && (value.intval == PD_SINK || value.intval == PD_DETACH)) {
 			msleep(50);
 			if (pmeter->is_pwr_off_water) {
-				pr_info("%s(line:%d) is_pwr_off_water(%d)\n",
+				pr_debug("%s(line:%d) is_pwr_off_water(%d)\n",
 					__func__, __LINE__,  pmeter->is_pwr_off_water);
 				goto exit;
 			}
@@ -1255,7 +1255,7 @@ static int s2mu106_pmeter_probe(struct platform_device *pdev)
 	struct power_supply_config psy_cfg = {};
 	int ret = 0;
 
-	pr_info("%s:[BATT] S2MU106 Power meter driver probe\n", __func__);
+	pr_debug("%s:[BATT] S2MU106 Power meter driver probe\n", __func__);
 	pmeter = kzalloc(sizeof(struct s2mu106_pmeter_data), GFP_KERNEL);
 	if (!pmeter)
 		return -ENOMEM;
@@ -1295,7 +1295,7 @@ static int s2mu106_pmeter_probe(struct platform_device *pdev)
 #endif
 	s2mu106_powermeter_initial(pmeter);
 
-	pr_info("%s:[BATT] S2MU106 pmeter driver loaded OK\n", __func__);
+	pr_debug("%s:[BATT] S2MU106 pmeter driver loaded OK\n", __func__);
 
 	return ret;
 
@@ -1323,7 +1323,7 @@ static int s2mu106_pmeter_suspend(struct device *dev)
 {
 	struct s2mu106_pmeter_data *pmeter = dev_get_drvdata(dev);
 
-	pr_info("%s %s\n", __func__, pm_water_status_str[pmeter->water_status]);
+	pr_debug("%s %s\n", __func__, pm_water_status_str[pmeter->water_status]);
 
 	if (pmeter->water_status == PM_WATER_IDLE)
 		cancel_delayed_work(&pmeter->water_work);
@@ -1335,7 +1335,7 @@ static int s2mu106_pmeter_resume(struct device *dev)
 {
 	struct s2mu106_pmeter_data *pmeter = dev_get_drvdata(dev);
 
-	pr_info("%s %s\n", __func__, pm_water_status_str[pmeter->water_status]);
+	pr_debug("%s %s\n", __func__, pm_water_status_str[pmeter->water_status]);
 
 	if (pmeter->water_status == PM_WATER_IDLE) {
 #if defined(CONFIG_ARCH_QCOM)
@@ -1357,7 +1357,7 @@ static void s2mu106_pmeter_shutdown(struct platform_device *pdev)
 {
 	struct s2mu106_pmeter_data *pmeter = platform_get_drvdata(pdev);
 
-	pr_info("%s: S2MU106 PowerMeter driver shutdown\n", __func__);
+	pr_debug("%s: S2MU106 PowerMeter driver shutdown\n", __func__);
 	s2mu106_pm_write_reg(pmeter, S2MU106_PM_REQ_BOX_CO1, 0);
 	s2mu106_pm_write_reg(pmeter, S2MU106_PM_REQ_BOX_CO2, 0);
 
