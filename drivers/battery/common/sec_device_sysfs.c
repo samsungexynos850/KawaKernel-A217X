@@ -541,7 +541,7 @@ ssize_t sysfs_device_show_attrs(struct device *dev,
 					ret = psy_fg->desc->get_property(psy_fg,
 							POWER_SUPPLY_PROP_ENERGY_FULL, &value);
 					if (ret < 0) {
-						pr_err("%s: Fail to %s get (%d=>%d)\n",
+						pr_debug("%s: Fail to %s get (%d=>%d)\n",
 								__func__, battery->pdata->fuelgauge_name,
 								POWER_SUPPLY_PROP_ENERGY_FULL, ret);
 					}
