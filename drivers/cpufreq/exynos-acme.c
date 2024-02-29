@@ -1376,7 +1376,7 @@ static int init_dm(struct exynos_cpufreq_domain *domain,
 
 
 /*Underclocking little cores to 130MHz*/
-static unsigned long arg_cpu_min_c1 = 130000;
+unsigned long arg_cpu_min_c1 = 130000;
 static int __init cpufreq_read_cpu_min_c1(char *cpu_min_c1) /*integer remains in memory after function call*/
 {
 	unsigned long ui_khz;
@@ -1448,7 +1448,7 @@ __setup("mif_min=", cpufreq_read_mif_min);
 
 /*Chatur, Carlos Burero & physwizz*/
 /*Overclocking little cores to 2.2GHz*/
-static unsigned long arg_cpu_max_c1 = 2210000; /*max_cpu_freq=2.2 GHz for little cores*/
+unsigned long arg_cpu_max_c1 = 2210000; /*max_cpu_freq=2.2 GHz for little cores*/
 
 static int __init cpufreq_read_cpu_max_c1(char *cpu_max_c1) /*integer remains in memory after function call*/
 {
@@ -1518,6 +1518,7 @@ static __init int cpufreq_read_mif_max(char *mif_max)
 	return ret;
 }
 __setup("mif_max=", cpufreq_read_mif_max);
+
 
 static __init void init_slack_timer(struct exynos_cpufreq_domain *domain,
 		struct device_node *dn)
