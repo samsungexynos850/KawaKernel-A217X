@@ -1410,8 +1410,8 @@ static __init int cpufreq_read_cpu_min_c2(char *cpu_min_c2)
 }
 __setup("cpu_min_c2=", cpufreq_read_cpu_min_c2);
 
-/*Underclocking gpu to 377MHz*/
-unsigned long arg_gpu_min = 377000;
+/*Underclocking gpu to 100MHz*/
+unsigned long arg_gpu_min = 1000000;
 
 static __init int cpufreq_read_gpu_min(char *gpu_min)
 {

@@ -868,7 +868,7 @@ err_domain_list_allocation:
 }
 
 #define GLOBAL_MHZ 1539
-#define GPU_MHZ 377
+#define GPU_MHZ 100
 
 static int ect_parse_gen_param_table(int parser_version, void *address, struct ect_gen_param_table *size)
 {
