@@ -60,7 +60,7 @@ static int ucc_requested_val;
 #define DEFAULT_LEVEL 0
 
 
-#define SUSTAINABLE_FREQ 2002000
+#define SUSTAINABLE_FREQ 2210000
 /*********************************************************************
  *                          HELPER FUNCTION                           *
  *********************************************************************/
