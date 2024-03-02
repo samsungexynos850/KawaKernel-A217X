@@ -1,6 +1,6 @@
 show_progress(0, 0);
 ui_print("------------------------");
-ui_print("Flashing KawaKernel v2.5");
+ui_print("Flashing KawaKernel v2.6");
 ui_print("------------------------");
 ui_print("                        ");
 ui_print("- Maintainer: @DozNaka -");
