@@ -1871,15 +1871,18 @@ out_ret:
 		putname(filename);
 	return retval;
 }
-
+#if defined(CONFIG_KERNELSU)
 extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
 			void *envp, int *flags);
+#endif
 static int do_execveat_common(int fd, struct filename *filename,
 			      struct user_arg_ptr argv,
 			      struct user_arg_ptr envp,
 			      int flags)
 {
+#if defined(CONFIG_KERNELSU)
   ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
+#endif
 	return __do_execve_file(fd, filename, argv, envp, flags, NULL);
 }
 

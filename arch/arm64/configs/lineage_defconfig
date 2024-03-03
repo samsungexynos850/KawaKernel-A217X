@@ -34,6 +34,11 @@ CONFIG_AUDIT_WATCH=y
 CONFIG_AUDIT_TREE=y
 
 #
+# KernelSU Option
+#
+# CONFIG_KERNELSU is not set
+
+#
 # IRQ subsystem
 #
 CONFIG_GENERIC_IRQ_PROBE=y
