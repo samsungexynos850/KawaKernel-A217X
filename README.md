@@ -6,7 +6,7 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 
 ## Features
 
-**I recommend using ThunderTweaks to change kernel settings**
+**I recommend using [KernelManager](https://github.com/DozNaka/KawaKernel-A217X/releases/latest) to change kernel settings**
 
 **Compiler**
 * Azure Clang compiler (Clang 15)
