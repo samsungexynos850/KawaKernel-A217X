@@ -24,6 +24,7 @@
 #include <openssl/engine.h>
 
 #define PKEY_ID_PKCS7 2
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 static __attribute__((noreturn))
 void format(void)
