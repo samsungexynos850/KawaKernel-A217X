@@ -96,7 +96,6 @@ static struct nft_trans *nft_trans_alloc_gfp(const struct nft_ctx *ctx,
 	if (trans == NULL)
 		return NULL;
 
-	INIT_LIST_HEAD(&trans->list);
 	trans->msg_type = msg_type;
 	trans->ctx	= *ctx;
 
@@ -533,8 +532,7 @@ static void nft_request_module(struct net *net, const char *fmt, ...)
 static void lockdep_nfnl_nft_mutex_not_held(void)
 {
 #ifdef CONFIG_PROVE_LOCKING
-	if (debug_locks)
-		WARN_ON_ONCE(lockdep_nfnl_is_held(NFNL_SUBSYS_NFTABLES));
+	WARN_ON_ONCE(lockdep_nfnl_is_held(NFNL_SUBSYS_NFTABLES));
 #endif
 }
 
@@ -720,11 +718,11 @@ static int nf_tables_gettable(struct net *net, struct sock *nlsk,
 					nlh->nlmsg_seq, NFT_MSG_NEWTABLE, 0,
 					family, table);
 	if (err < 0)
-		goto err_fill_table_info;
+		goto err;
 
-	return nfnetlink_unicast(skb2, net, NETLINK_CB(skb).portid);
+	return nlmsg_unicast(nlsk, skb2, NETLINK_CB(skb).portid);
 
-err_fill_table_info:
+err:
 	kfree_skb(skb2);
 	return err;
 }
@@ -1385,11 +1383,11 @@ static int nf_tables_getchain(struct net *net, struct sock *nlsk,
 					nlh->nlmsg_seq, NFT_MSG_NEWCHAIN, 0,
 					family, table, chain);
 	if (err < 0)
-		goto err_fill_chain_info;
+		goto err;
 
-	return nfnetlink_unicast(skb2, net, NETLINK_CB(skb).portid);
+	return nlmsg_unicast(nlsk, skb2, NETLINK_CB(skb).portid);
 
-err_fill_chain_info:
+err:
 	kfree_skb(skb2);
 	return err;
 }
@@ -2168,31 +2166,27 @@ struct nft_expr *nft_expr_init(const struct nft_ctx *ctx,
 
 	err = nf_tables_expr_parse(ctx, nla, &info);
 	if (err < 0)
-		goto err_expr_parse;
-
-	err = -EOPNOTSUPP;
-	if (!(info.ops->type->flags & NFT_EXPR_STATEFUL))
-		goto err_expr_stateful;
+		goto err1;
 
 	err = -ENOMEM;
 	expr = kzalloc(info.ops->size, GFP_KERNEL);
 	if (expr == NULL)
-		goto err_expr_stateful;
+		goto err2;
 
 	err = nf_tables_newexpr(ctx, &info, expr);
 	if (err < 0)
-		goto err_expr_new;
+		goto err3;
 
 	return expr;
-err_expr_new:
+err3:
 	kfree(expr);
-err_expr_stateful:
+err2:
 	owner = info.ops->type->owner;
 	if (info.ops->type->release_ops)
 		info.ops->type->release_ops(info.ops);
 
 	module_put(owner);
-err_expr_parse:
+err1:
 	return ERR_PTR(err);
 }
 
@@ -2494,11 +2488,11 @@ static int nf_tables_getrule(struct net *net, struct sock *nlsk,
 				       nlh->nlmsg_seq, NFT_MSG_NEWRULE, 0,
 				       family, table, chain, rule);
 	if (err < 0)
-		goto err_fill_rule_info;
+		goto err;
 
-	return nfnetlink_unicast(skb2, net, NETLINK_CB(skb).portid);
+	return nlmsg_unicast(nlsk, skb2, NETLINK_CB(skb).portid);
 
-err_fill_rule_info:
+err:
 	kfree_skb(skb2);
 	return err;
 }
@@ -3040,7 +3034,6 @@ static struct nft_set *nft_set_lookup_byhandle(const struct nft_table *table,
 }
 
 static struct nft_set *nft_set_lookup_byid(const struct net *net,
-					   const struct nft_table *table,
 					   const struct nlattr *nla, u8 genmask)
 {
 	struct nft_trans *trans;
@@ -3051,7 +3044,6 @@ static struct nft_set *nft_set_lookup_byid(const struct net *net,
 			struct nft_set *set = nft_trans_set(trans);
 
 			if (id == nft_trans_set_id(trans) &&
-			    set->table == table &&
 			    nft_active_genmask(set, genmask))
 				return set;
 		}
@@ -3072,7 +3064,7 @@ struct nft_set *nft_set_lookup_global(const struct net *net,
 		if (!nla_set_id)
 			return set;
 
-		set = nft_set_lookup_byid(net, table, nla_set_id, genmask);
+		set = nft_set_lookup_byid(net, nla_set_id, genmask);
 	}
 	return set;
 }
@@ -3098,7 +3090,7 @@ cont:
 		list_for_each_entry(i, &ctx->table->sets, list) {
 			int tmp;
 
-			if (!nft_is_active_next(ctx->net, i))
+			if (!nft_is_active_next(ctx->net, set))
 				continue;
 			if (!sscanf(i->name, name, &tmp))
 				continue;
@@ -3212,8 +3204,7 @@ static int nf_tables_fill_set(struct sk_buff *skb, const struct nft_ctx *ctx,
 			goto nla_put_failure;
 	}
 
-	if (set->udata &&
-	    nla_put(skb, NFTA_SET_USERDATA, set->udlen, set->udata))
+	if (nla_put(skb, NFTA_SET_USERDATA, set->udlen, set->udata))
 		goto nla_put_failure;
 
 	desc = nla_nest_start(skb, NFTA_SET_DESC);
@@ -3385,11 +3376,11 @@ static int nf_tables_getset(struct net *net, struct sock *nlsk,
 
 	err = nf_tables_fill_set(skb2, &ctx, set, NFT_MSG_NEWSET, 0);
 	if (err < 0)
-		goto err_fill_set_info;
+		goto err;
 
-	return nfnetlink_unicast(skb2, net, NETLINK_CB(skb).portid);
+	return nlmsg_unicast(nlsk, skb2, NETLINK_CB(skb).portid);
 
-err_fill_set_info:
+err:
 	kfree_skb(skb2);
 	return err;
 }
@@ -4165,18 +4156,24 @@ static int nft_get_set_elem(struct nft_ctx *ctx, struct nft_set *set,
 	err = -ENOMEM;
 	skb = nlmsg_new(NLMSG_GOODSIZE, GFP_ATOMIC);
 	if (skb == NULL)
-		return err;
+		goto err1;
 
 	err = nf_tables_fill_setelem_info(skb, ctx, ctx->seq, ctx->portid,
 					  NFT_MSG_NEWSETELEM, 0, set, &elem);
 	if (err < 0)
-		goto err_fill_setelem;
+		goto err2;
 
-	return nfnetlink_unicast(skb, ctx->net, ctx->portid);
+	err = nfnetlink_unicast(skb, ctx->net, ctx->portid, MSG_DONTWAIT);
+	/* This avoids a loop in nfnetlink. */
+	if (err < 0)
+		goto err1;
 
-err_fill_setelem:
+	return 0;
+err2:
 	kfree_skb(skb);
-	return err;
+err1:
+	/* this avoids a loop in nfnetlink. */
+	return err == -EAGAIN ? -ENOBUFS : err;
 }
 
 /* called with rcu_read_lock held */
@@ -5275,11 +5272,10 @@ static int nf_tables_getobj(struct net *net, struct sock *nlsk,
 				      nlh->nlmsg_seq, NFT_MSG_NEWOBJ, 0,
 				      family, table, obj, reset);
 	if (err < 0)
-		goto err_fill_obj_info;
+		goto err;
 
-	return nfnetlink_unicast(skb2, net, NETLINK_CB(skb).portid);
-
-err_fill_obj_info:
+	return nlmsg_unicast(nlsk, skb2, NETLINK_CB(skb).portid);
+err:
 	kfree_skb(skb2);
 	return err;
 }
@@ -5936,11 +5932,10 @@ static int nf_tables_getflowtable(struct net *net, struct sock *nlsk,
 					    NFT_MSG_NEWFLOWTABLE, 0, family,
 					    flowtable);
 	if (err < 0)
-		goto err_fill_flowtable_info;
+		goto err;
 
-	return nfnetlink_unicast(skb2, net, NETLINK_CB(skb).portid);
-
-err_fill_flowtable_info:
+	return nlmsg_unicast(nlsk, skb2, NETLINK_CB(skb).portid);
+err:
 	kfree_skb(skb2);
 	return err;
 }
@@ -6101,11 +6096,10 @@ static int nf_tables_getgen(struct net *net, struct sock *nlsk,
 	err = nf_tables_fill_gen_info(skb2, net, NETLINK_CB(skb).portid,
 				      nlh->nlmsg_seq);
 	if (err < 0)
-		goto err_fill_gen_info;
+		goto err;
 
-	return nfnetlink_unicast(skb2, net, NETLINK_CB(skb).portid);
-
-err_fill_gen_info:
+	return nlmsg_unicast(nlsk, skb2, NETLINK_CB(skb).portid);
+err:
 	kfree_skb(skb2);
 	return err;
 }

@@ -314,7 +314,7 @@ static struct bio *__bio_chain_endio(struct bio *bio)
 {
 	struct bio *parent = bio->bi_private;
 
-	if (bio->bi_status && !parent->bi_status)
+	if (!parent->bi_status)
 		parent->bi_status = bio->bi_status;
 	bio_put(bio);
 	return parent;
@@ -609,6 +609,11 @@ void __bio_clone_fast(struct bio *bio, struct bio *bio_src)
 	bio->bi_write_hint = bio_src->bi_write_hint;
 	bio->bi_iter = bio_src->bi_iter;
 	bio->bi_io_vec = bio_src->bi_io_vec;
+	bio->bi_aux_private = bio_src->bi_aux_private;
+#ifdef CONFIG_CRYPTO_DISKCIPHER
+	bio->bi_iter.bi_dun = bio_src->bi_iter.bi_dun;
+	bio->bi_crypt_skip = bio_src->bi_crypt_skip;
+#endif
 
 	bio_clone_blkcg_association(bio, bio_src);
 }
@@ -1528,7 +1533,7 @@ struct bio *bio_copy_kern(struct request_queue *q, void *data, unsigned int len,
 		if (bytes > len)
 			bytes = len;
 
-		page = alloc_page(q->bounce_gfp | __GFP_ZERO | gfp_mask);
+		page = alloc_page(q->bounce_gfp | gfp_mask);
 		if (!page)
 			goto cleanup;
 

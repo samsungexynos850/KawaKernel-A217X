@@ -1137,7 +1137,7 @@ void macvlan_common_setup(struct net_device *dev)
 {
 	ether_setup(dev);
 
-	/* ether_setup() has set dev->min_mtu to ETH_MIN_MTU. */
+	dev->min_mtu		= 0;
 	dev->max_mtu		= ETH_MAX_MTU;
 	dev->priv_flags	       &= ~IFF_TX_SKB_SHARING;
 	netif_keep_dst(dev);
@@ -1230,9 +1230,6 @@ static void macvlan_port_destroy(struct net_device *dev)
 static int macvlan_validate(struct nlattr *tb[], struct nlattr *data[],
 			    struct netlink_ext_ack *extack)
 {
-	struct nlattr *nla, *head;
-	int rem, len;
-
 	if (tb[IFLA_ADDRESS]) {
 		if (nla_len(tb[IFLA_ADDRESS]) != ETH_ALEN)
 			return -EINVAL;
@@ -1278,20 +1275,6 @@ static int macvlan_validate(struct nlattr *tb[], struct nlattr *data[],
 
 		if (!is_valid_ether_addr(nla_data(data[IFLA_MACVLAN_MACADDR])))
 			return -EADDRNOTAVAIL;
-	}
-
-	if (data[IFLA_MACVLAN_MACADDR_DATA]) {
-		head = nla_data(data[IFLA_MACVLAN_MACADDR_DATA]);
-		len = nla_len(data[IFLA_MACVLAN_MACADDR_DATA]);
-
-		nla_for_each_attr(nla, head, len, rem) {
-			if (nla_type(nla) != IFLA_MACVLAN_MACADDR ||
-			    nla_len(nla) != ETH_ALEN)
-				return -EINVAL;
-
-			if (!is_valid_ether_addr(nla_data(nla)))
-				return -EADDRNOTAVAIL;
-		}
 	}
 
 	if (data[IFLA_MACVLAN_MACADDR_COUNT])
@@ -1350,6 +1333,10 @@ static int macvlan_changelink_sources(struct macvlan_dev *vlan, u32 mode,
 		len = nla_len(data[IFLA_MACVLAN_MACADDR_DATA]);
 
 		nla_for_each_attr(nla, head, len, rem) {
+			if (nla_type(nla) != IFLA_MACVLAN_MACADDR ||
+			    nla_len(nla) != ETH_ALEN)
+				continue;
+
 			addr = nla_data(nla);
 			ret = macvlan_hash_add_source(vlan, addr);
 			if (ret)
@@ -1471,10 +1458,8 @@ destroy_macvlan_port:
 	/* the macvlan port may be freed by macvlan_uninit when fail to register.
 	 * so we destroy the macvlan port only when it's valid.
 	 */
-	if (create && macvlan_port_get_rtnl(lowerdev)) {
-		macvlan_flush_sources(port, vlan);
+	if (create && macvlan_port_get_rtnl(lowerdev))
 		macvlan_port_destroy(port->dev);
-	}
 	return err;
 }
 EXPORT_SYMBOL_GPL(macvlan_common_newlink);

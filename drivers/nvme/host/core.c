@@ -255,8 +255,11 @@ void nvme_complete_rq(struct request *req)
 	trace_nvme_complete_rq(req);
 
 	if (unlikely(status != BLK_STS_OK && nvme_req_needs_retry(req))) {
-		if ((req->cmd_flags & REQ_NVME_MPATH) && nvme_failover_req(req))
+		if ((req->cmd_flags & REQ_NVME_MPATH) &&
+		    blk_path_error(status)) {
+			nvme_failover_req(req);
 			return;
+		}
 
 		if (!blk_queue_dying(req->q)) {
 			nvme_req(req)->retries++;
@@ -1599,7 +1602,7 @@ static void __nvme_revalidate_disk(struct gendisk *disk, struct nvme_id_ns *id)
 	if (ns->head->disk) {
 		nvme_update_disk_info(ns->head->disk, ns, id);
 		blk_queue_stack_limits(ns->head->disk->queue, ns->queue);
-		nvme_mpath_update_disk_size(ns->head->disk);
+		revalidate_disk(ns->head->disk);
 	}
 #endif
 }
@@ -1716,21 +1719,18 @@ static int nvme_pr_preempt(struct block_device *bdev, u64 old, u64 new,
 		enum pr_type type, bool abort)
 {
 	u32 cdw10 = nvme_pr_type(type) << 8 | (abort ? 2 : 1);
-
 	return nvme_pr_command(bdev, cdw10, old, new, nvme_cmd_resv_acquire);
 }
 
 static int nvme_pr_clear(struct block_device *bdev, u64 key)
 {
-	u32 cdw10 = 1 | (key ? 0 : 1 << 3);
-
-	return nvme_pr_command(bdev, cdw10, key, 0, nvme_cmd_resv_release);
+	u32 cdw10 = 1 | (key ? 1 << 3 : 0);
+	return nvme_pr_command(bdev, cdw10, key, 0, nvme_cmd_resv_register);
 }
 
 static int nvme_pr_release(struct block_device *bdev, u64 key, enum pr_type type)
 {
-	u32 cdw10 = nvme_pr_type(type) << 8 | (key ? 0 : 1 << 3);
-
+	u32 cdw10 = nvme_pr_type(type) << 8 | (key ? 1 << 3 : 0);
 	return nvme_pr_command(bdev, cdw10, key, 0, nvme_cmd_resv_release);
 }
 
@@ -2094,8 +2094,7 @@ static void nvme_set_latency_tolerance(struct device *dev, s32 val)
 
 	if (ctrl->ps_max_latency_us != latency) {
 		ctrl->ps_max_latency_us = latency;
-		if (ctrl->state == NVME_CTRL_LIVE)
-			nvme_configure_apst(ctrl);
+		nvme_configure_apst(ctrl);
 	}
 }
 
@@ -2320,6 +2319,7 @@ static int nvme_init_subsystem(struct nvme_ctrl *ctrl, struct nvme_id_ctrl *id)
 	nvme_init_subnqn(subsys, ctrl, id);
 	memcpy(subsys->serial, id->sn, sizeof(subsys->serial));
 	memcpy(subsys->model, id->mn, sizeof(subsys->model));
+	memcpy(subsys->firmware_rev, id->fr, sizeof(subsys->firmware_rev));
 	subsys->vendor_id = le16_to_cpu(id->vid);
 	subsys->cmic = id->cmic;
 
@@ -2463,6 +2463,10 @@ int nvme_init_identify(struct nvme_ctrl *ctrl)
 	if (!ctrl->identified) {
 		int i;
 
+		ret = nvme_init_subsystem(ctrl, id);
+		if (ret)
+			goto out_free;
+
 		/*
 		 * Check for quirks.  Quirk can depend on firmware version,
 		 * so, in principle, the set of quirks present can change
@@ -2475,13 +2479,7 @@ int nvme_init_identify(struct nvme_ctrl *ctrl)
 			if (quirk_matches(id, &core_quirks[i]))
 				ctrl->quirks |= core_quirks[i].quirks;
 		}
-
-		ret = nvme_init_subsystem(ctrl, id);
-		if (ret)
-			goto out_free;
 	}
-	memcpy(ctrl->subsys->firmware_rev, id->fr,
-	       sizeof(ctrl->subsys->firmware_rev));
 
 	if (force_apst && (ctrl->quirks & NVME_QUIRK_NO_DEEPEST_PS)) {
 		dev_warn(ctrl->device, "forcibly allowing all power states due to nvme_core.force_apst -- use at your own risk\n");
@@ -2610,23 +2608,7 @@ static int nvme_dev_open(struct inode *inode, struct file *file)
 		return -EWOULDBLOCK;
 	}
 
-	nvme_get_ctrl(ctrl);
-	if (!try_module_get(ctrl->ops->module)) {
-		nvme_put_ctrl(ctrl);
-		return -EINVAL;
-	}
-
 	file->private_data = ctrl;
-	return 0;
-}
-
-static int nvme_dev_release(struct inode *inode, struct file *file)
-{
-	struct nvme_ctrl *ctrl =
-		container_of(inode->i_cdev, struct nvme_ctrl, cdev);
-
-	module_put(ctrl->ops->module);
-	nvme_put_ctrl(ctrl);
 	return 0;
 }
 
@@ -2675,17 +2657,11 @@ static long nvme_dev_ioctl(struct file *file, unsigned int cmd,
 	case NVME_IOCTL_IO_CMD:
 		return nvme_dev_user_cmd(ctrl, argp);
 	case NVME_IOCTL_RESET:
-		if (!capable(CAP_SYS_ADMIN))
-			return -EACCES;
 		dev_warn(ctrl->device, "resetting controller\n");
 		return nvme_reset_ctrl_sync(ctrl);
 	case NVME_IOCTL_SUBSYS_RESET:
-		if (!capable(CAP_SYS_ADMIN))
-			return -EACCES;
 		return nvme_reset_subsystem(ctrl);
 	case NVME_IOCTL_RESCAN:
-		if (!capable(CAP_SYS_ADMIN))
-			return -EACCES;
 		nvme_queue_scan(ctrl);
 		return 0;
 	default:
@@ -2696,7 +2672,6 @@ static long nvme_dev_ioctl(struct file *file, unsigned int cmd,
 static const struct file_operations nvme_dev_fops = {
 	.owner		= THIS_MODULE,
 	.open		= nvme_dev_open,
-	.release	= nvme_dev_release,
 	.unlocked_ioctl	= nvme_dev_ioctl,
 	.compat_ioctl	= nvme_dev_ioctl,
 };
@@ -2853,14 +2828,6 @@ const struct attribute_group nvme_ns_id_attr_group = {
 	.is_visible	= nvme_ns_id_attrs_are_visible,
 };
 
-const struct attribute_group *nvme_ns_id_attr_groups[] = {
-	&nvme_ns_id_attr_group,
-#ifdef CONFIG_NVM
-	&nvme_nvm_attr_group,
-#endif
-	NULL,
-};
-
 #define nvme_show_str_function(field)						\
 static ssize_t  field##_show(struct device *dev,				\
 			    struct device_attribute *attr, char *buf)		\
@@ -2891,10 +2858,6 @@ static ssize_t nvme_sysfs_delete(struct device *dev,
 				size_t count)
 {
 	struct nvme_ctrl *ctrl = dev_get_drvdata(dev);
-
-	/* Can't delete non-created controllers */
-	if (!ctrl->created)
-		return -EBUSY;
 
 	if (device_remove_file_self(dev, attr))
 		nvme_delete_ctrl_sync(ctrl);
@@ -3230,7 +3193,14 @@ static void nvme_alloc_ns(struct nvme_ctrl *ctrl, unsigned nsid)
 
 	nvme_get_ctrl(ctrl);
 
-	device_add_disk(ctrl->device, ns->disk, nvme_ns_id_attr_groups);
+	device_add_disk(ctrl->device, ns->disk);
+	if (sysfs_create_group(&disk_to_dev(ns->disk)->kobj,
+					&nvme_ns_id_attr_group))
+		pr_warn("%s: failed to create sysfs group for identification\n",
+			ns->disk->disk_name);
+	if (ns->ndev && nvme_nvm_register_sysfs(ns))
+		pr_warn("%s: failed to register lightnvm sysfs group for identification\n",
+			ns->disk->disk_name);
 
 	nvme_mpath_add_disk(ns, id);
 	nvme_fault_inject_init(ns);
@@ -3264,6 +3234,10 @@ static void nvme_ns_remove(struct nvme_ns *ns)
 	synchronize_srcu(&ns->head->srcu); /* wait for concurrent submissions */
 
 	if (ns->disk && ns->disk->flags & GENHD_FL_UP) {
+		sysfs_remove_group(&disk_to_dev(ns->disk)->kobj,
+					&nvme_ns_id_attr_group);
+		if (ns->ndev)
+			nvme_nvm_unregister_sysfs(ns);
 		del_gendisk(ns->disk);
 		blk_cleanup_queue(ns->queue);
 		if (blk_get_integrity(ns->disk))
@@ -3473,14 +3447,7 @@ static void nvme_async_event_work(struct work_struct *work)
 		container_of(work, struct nvme_ctrl, async_event_work);
 
 	nvme_aen_uevent(ctrl);
-
-	/*
-	 * The transport drivers must guarantee AER submission here is safe by
-	 * flushing ctrl async_event_work after changing the controller state
-	 * from LIVE and before freeing the admin queue.
-	*/
-	if (ctrl->state == NVME_CTRL_LIVE)
-		ctrl->ops->submit_async_event(ctrl);
+	ctrl->ops->submit_async_event(ctrl);
 }
 
 static bool nvme_ctrl_pp_status(struct nvme_ctrl *ctrl)
@@ -3612,7 +3579,6 @@ void nvme_start_ctrl(struct nvme_ctrl *ctrl)
 		queue_work(nvme_wq, &ctrl->async_event_work);
 		nvme_start_queues(ctrl);
 	}
-	ctrl->created = true;
 }
 EXPORT_SYMBOL_GPL(nvme_start_ctrl);
 

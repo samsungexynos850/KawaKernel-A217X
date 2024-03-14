@@ -787,7 +787,7 @@ static inline int security_inode_killpriv(struct dentry *dentry)
 
 static inline int security_inode_getsecurity(struct inode *inode, const char *name, void **buffer, bool alloc)
 {
-	return cap_inode_getsecurity(inode, name, buffer, alloc);
+	return -EOPNOTSUPP;
 }
 
 static inline int security_inode_setsecurity(struct inode *inode, const char *name, const void *value, size_t size, int flags)
@@ -912,11 +912,6 @@ static inline int security_prepare_creds(struct cred *new,
 static inline void security_transfer_creds(struct cred *new,
 					   const struct cred *old)
 {
-}
-
-static inline void security_cred_getsecid(const struct cred *c, u32 *secid)
-{
-	*secid = 0;
 }
 
 static inline int security_kernel_act_as(struct cred *cred, u32 secid)

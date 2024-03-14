@@ -620,7 +620,8 @@ static int btrfs_delayed_inode_reserve_metadata(
 	 */
 	if (!src_rsv || (!trans->bytes_reserved &&
 			 src_rsv->type != BTRFS_BLOCK_RSV_DELALLOC)) {
-		ret = btrfs_qgroup_reserve_meta_prealloc(root, num_bytes, true);
+		ret = btrfs_qgroup_reserve_meta_prealloc(root,
+				fs_info->nodesize, true);
 		if (ret < 0)
 			return ret;
 		ret = btrfs_block_rsv_add(root, dst_rsv, num_bytes,
@@ -642,7 +643,7 @@ static int btrfs_delayed_inode_reserve_metadata(
 						      btrfs_ino(inode),
 						      num_bytes, 1);
 		} else {
-			btrfs_qgroup_free_meta_prealloc(root, num_bytes);
+			btrfs_qgroup_free_meta_prealloc(root, fs_info->nodesize);
 		}
 		return ret;
 	}
@@ -1030,10 +1031,12 @@ static int __btrfs_update_delayed_inode(struct btrfs_trans_handle *trans,
 	nofs_flag = memalloc_nofs_save();
 	ret = btrfs_lookup_inode(trans, root, path, &key, mod);
 	memalloc_nofs_restore(nofs_flag);
-	if (ret > 0)
-		ret = -ENOENT;
-	if (ret < 0)
-		goto out;
+	if (ret > 0) {
+		btrfs_release_path(path);
+		return -ENOENT;
+	} else if (ret < 0) {
+		return ret;
+	}
 
 	leaf = path->nodes[0];
 	inode_item = btrfs_item_ptr(leaf, path->slots[0],
@@ -1070,14 +1073,6 @@ no_iref:
 err_out:
 	btrfs_delayed_inode_release_metadata(fs_info, node, (ret < 0));
 	btrfs_release_delayed_inode(node);
-
-	/*
-	 * If we fail to update the delayed inode we need to abort the
-	 * transaction, because we could leave the inode with the improper
-	 * counts behind.
-	 */
-	if (ret && ret != -ENOENT)
-		btrfs_abort_transaction(trans, ret);
 
 	return ret;
 

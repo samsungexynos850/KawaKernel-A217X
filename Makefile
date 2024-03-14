@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 4
 PATCHLEVEL = 19
-SUBLEVEL = 275
+SUBLEVEL = 132
 EXTRAVERSION =
 NAME = "People's Front"
 
@@ -319,7 +319,8 @@ include scripts/subarch.include
 # Alternatively CROSS_COMPILE can be set in the environment.
 # Default value for CROSS_COMPILE is not to prefix executables
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
-ARCH		?= $(SUBARCH)
+ARCH		?=arm64
+CROSS_COMPILE   ?= ../PLATFORM/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
 
 # Architecture as present in compile.h
 UTS_MACHINE 	:= $(ARCH)
@@ -358,13 +359,8 @@ HOST_LFS_CFLAGS := $(shell getconf LFS_CFLAGS 2>/dev/null)
 HOST_LFS_LDFLAGS := $(shell getconf LFS_LDFLAGS 2>/dev/null)
 HOST_LFS_LIBS := $(shell getconf LFS_LIBS 2>/dev/null)
 
-ifneq ($(LLVM),)
-HOSTCC	= clang
-HOSTCXX	= clang++
-else
-HOSTCC	= gcc
-HOSTCXX	= g++
-endif
+HOSTCC       = gcc
+HOSTCXX      = g++
 KBUILD_HOSTCFLAGS   := -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 \
 		-fomit-frame-pointer -std=gnu89 $(HOST_LFS_CFLAGS) \
 		$(HOSTCFLAGS)
@@ -373,39 +369,31 @@ KBUILD_HOSTLDFLAGS  := $(HOST_LFS_LDFLAGS) $(HOSTLDFLAGS)
 KBUILD_HOSTLDLIBS   := $(HOST_LFS_LIBS) $(HOSTLDLIBS)
 
 # Make variables (CC, etc...)
-CPP		= $(CC) -E
-ifneq ($(LLVM),)
-CC		= clang
-LD		= ld.lld
-AR		= llvm-ar
-NM		= llvm-nm
-OBJCOPY		= llvm-objcopy
-OBJDUMP		= llvm-objdump
-READELF		= llvm-readelf
-OBJSIZE		= llvm-size
-STRIP		= llvm-strip
-else
-CC		= $(CROSS_COMPILE)gcc
+AS		= $(CROSS_COMPILE)as
 LD		= $(CROSS_COMPILE)ld
+CC              = $(srctree)/toolchain/clang/host/linux-x86/clang-r353983c/bin/clang
+CPP		= $(CC) -E
 AR		= $(CROSS_COMPILE)ar
 NM		= $(CROSS_COMPILE)nm
+STRIP		= $(CROSS_COMPILE)strip
 OBJCOPY		= $(CROSS_COMPILE)objcopy
 OBJDUMP		= $(CROSS_COMPILE)objdump
-READELF		= $(CROSS_COMPILE)readelf
-OBJSIZE		= $(CROSS_COMPILE)size
-STRIP		= $(CROSS_COMPILE)strip
-endif
 LEX		= flex
 YACC		= bison
 AWK		= awk
 GENKSYMS	= scripts/genksyms/genksyms
 INSTALLKERNEL  := installkernel
-DEPMOD		= depmod
+DEPMOD		= /sbin/depmod
 PERL		= perl
 PYTHON		= python
 PYTHON2		= python2
 PYTHON3		= python3
 CHECK		= sparse
+
+ifeq ($(CONFIG_EXYNOS_FMP_FIPS),)
+READELF        = $(CROSS_COMPILE)readelf
+export READELF
+endif
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void -Wno-unknown-attribute $(CF)
@@ -438,7 +426,8 @@ KBUILD_AFLAGS   := -D__ASSEMBLY__
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common -fshort-wchar \
 		   -Werror-implicit-function-declaration \
-		   -Werror=return-type -Wno-format-security \
+		   -Wno-format-security \
+		   -Werror \
 		   -std=gnu89
 KBUILD_CPPFLAGS := -D__KERNEL__
 KBUILD_AFLAGS_KERNEL :=
@@ -450,8 +439,8 @@ KBUILD_LDFLAGS :=
 GCC_PLUGINS_CFLAGS :=
 CLANG_FLAGS :=
 
-export ARCH SRCARCH CONFIG_SHELL HOSTCC KBUILD_HOSTCFLAGS CROSS_COMPILE LD CC
-export CPP AR NM STRIP OBJCOPY OBJDUMP OBJSIZE READELF KBUILD_HOSTLDFLAGS KBUILD_HOSTLDLIBS
+export ARCH SRCARCH CONFIG_SHELL HOSTCC KBUILD_HOSTCFLAGS CROSS_COMPILE AS LD CC
+export CPP AR NM STRIP OBJCOPY OBJDUMP KBUILD_HOSTLDFLAGS KBUILD_HOSTLDLIBS
 export MAKE LEX YACC AWK GENKSYMS INSTALLKERNEL PERL PYTHON PYTHON2 PYTHON3 UTS_MACHINE
 export HOSTCXX KBUILD_HOSTCXXFLAGS LDFLAGS_MODULE CHECK CHECKFLAGS
 
@@ -499,23 +488,43 @@ ifneq ($(KBUILD_SRC),)
 	    $(srctree) $(objtree) $(VERSION) $(PATCHLEVEL)
 endif
 
+ifneq ($(PLATFORM_VERSION), )
+PLATFORM_VERSION_NUMBER=$(shell $(CONFIG_SHELL) $(srctree)/scripts/android-version.sh $(PLATFORM_VERSION))
+MAJOR_VERSION=$(shell $(CONFIG_SHELL) $(srctree)/scripts/android-major-version.sh $(PLATFORM_VERSION))
+export ANDROID_VERSION=$(PLATFORM_VERSION_NUMBER)
+export ANDROID_MAJOR_VERSION=$(MAJOR_VERSION)
+KBUILD_CFLAGS += -DANDROID_VERSION=$(PLATFORM_VERSION_NUMBER)
+KBUILD_CFLAGS += -DANDROID_MAJOR_VERSION=$(MAJOR_VERSION)
+# Example
+# SELINUX_DIR=$(shell $(CONFIG_SHELL) $(srctree)/scripts/find_matching_major.sh "$(srctree)" "security/selinux" "$(ANDROID_MAJOR_VERSION)")
+else
+export ANDROID_VERSION=990000
+KBUILD_CFLAGS += -DANDROID_VERSION=990000
+endif
+PHONY += replace_dirs
+replace_dirs:
+ifneq ($(PLATFORM_VERSION), )
+# Example
+	#@echo "replace selinux from $(SELINUX_DIR)"
+	#$(Q)$(CONFIG_SHELL) $(srctree)/scripts/replace_dir.sh "$(srctree)" "security/selinux" "$(SELINUX_DIR)"
+endif
+
 ifeq ($(cc-name),clang)
 ifneq ($(CROSS_COMPILE),)
-CLANG_TRIPLE	?= $(CROSS_COMPILE)
+CLANG_TRIPLE    ?= $(srctree)/toolchain/clang/host/linux-x86/clang-r353983c/bin/aarch64-linux-gnu-
 CLANG_FLAGS	+= --target=$(notdir $(CLANG_TRIPLE:%-=%))
 ifeq ($(shell $(srctree)/scripts/clang-android.sh $(CC) $(CLANG_FLAGS)), y)
 $(error "Clang with Android --target detected. Did you specify CLANG_TRIPLE?")
 endif
 GCC_TOOLCHAIN_DIR := $(dir $(shell which $(CROSS_COMPILE)elfedit))
-CLANG_FLAGS	+= --prefix=$(GCC_TOOLCHAIN_DIR)$(notdir $(CROSS_COMPILE))
+CLANG_FLAGS	+= --prefix=$(GCC_TOOLCHAIN_DIR)
 GCC_TOOLCHAIN	:= $(realpath $(GCC_TOOLCHAIN_DIR)/..)
 endif
 ifneq ($(GCC_TOOLCHAIN),)
 CLANG_FLAGS	+= --gcc-toolchain=$(GCC_TOOLCHAIN)
 endif
-ifneq ($(LLVM_IAS),1)
+KBUILD_CFLAGS += -Wno-sizeof-pointer-div
 CLANG_FLAGS	+= -no-integrated-as
-endif
 CLANG_FLAGS	+= -Werror=unknown-warning-option
 KBUILD_CFLAGS	+= $(CLANG_FLAGS)
 KBUILD_AFLAGS	+= $(CLANG_FLAGS)
@@ -617,7 +626,7 @@ endif
 all: vmlinux
 
 CFLAGS_GCOV	:= -fprofile-arcs -ftest-coverage \
-	$(call cc-option,-fno-tree-loop-im) \
+	$(call cc-option) \
 	$(call cc-disable-warning,maybe-uninitialized,)
 export CFLAGS_GCOV
 
@@ -687,7 +696,13 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning, int-in-bool-context)
 KBUILD_CFLAGS	+= $(call cc-disable-warning, address-of-packed-member)
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
-KBUILD_CFLAGS   += -Os
+KBUILD_CFLAGS	+= -Os $(call cc-disable-warning,maybe-uninitialized,)
+else ifdef CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3_OFAST_SUB_OPTIONS
+KBUILD_CFLAGS   += -O3 -fno-signed-zeros -fassociative-math -fno-trapping-math -freciprocal-math -fno-math-errno $(call cc-disable-warning,maybe-uninitialized,)
+else ifdef CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_OFAST
+KBUILD_CFLAGS	+= -Ofast $(call cc-disable-warning,maybe-uninitialized,)
+else ifdef CONFIG_PROFILE_ALL_BRANCHES
+KBUILD_CFLAGS	+= -O2 $(call cc-disable-warning,maybe-uninitialized,)
 else
 KBUILD_CFLAGS   += -O2
 endif
@@ -736,11 +751,12 @@ KBUILD_CFLAGS += $(call cc-disable-warning, tautological-compare)
 # See modpost pattern 2
 KBUILD_CFLAGS += $(call cc-option, -mno-global-merge,)
 KBUILD_CFLAGS += $(call cc-option, -fcatch-undefined-behavior)
-endif
+else
 
 # These warnings generated too much noise in a regular build.
 # Use make W=1 to enable them (see scripts/Makefile.extrawarn)
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-but-set-variable)
+endif
 
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-const-variable)
 ifdef CONFIG_FRAME_POINTER
@@ -764,13 +780,8 @@ KBUILD_CFLAGS   += $(call cc-option, -gsplit-dwarf, -g)
 else
 KBUILD_CFLAGS	+= -g
 endif
-ifeq ($(LLVM_IAS),1)
-KBUILD_AFLAGS	+= -g
-else
 KBUILD_AFLAGS	+= -Wa,-gdwarf-2
 endif
-endif
-
 ifdef CONFIG_DEBUG_INFO_DWARF4
 KBUILD_CFLAGS	+= $(call cc-option, -gdwarf-4,)
 endif
@@ -922,6 +933,12 @@ KBUILD_CFLAGS   += $(call cc-option,-Werror=designated-init)
 # change __FILE__ to the relative path from the srctree
 KBUILD_CFLAGS	+= $(call cc-option,-fmacro-prefix-map=$(srctree)/=)
 
+# ensure -fcf-protection is disabled when using retpoline as it is
+# incompatible with -mindirect-branch=thunk-extern
+ifdef CONFIG_RETPOLINE
+KBUILD_CFLAGS += $(call cc-option,-fcf-protection=none)
+endif
+
 # use the deterministic mode of AR if available
 KBUILD_ARFLAGS := $(call ar-option,D)
 
@@ -939,9 +956,6 @@ KBUILD_CFLAGS   += $(ARCH_CFLAGS)   $(KCFLAGS)
 LDFLAGS_BUILD_ID := $(call ld-option, --build-id)
 KBUILD_LDFLAGS_MODULE += $(LDFLAGS_BUILD_ID)
 LDFLAGS_vmlinux += $(LDFLAGS_BUILD_ID)
-
-KBUILD_LDFLAGS	+= -z noexecstack
-KBUILD_LDFLAGS	+= $(call ld-option,--no-warn-rwx-segments)
 
 ifeq ($(CONFIG_STRIP_ASM_SYMS),y)
 LDFLAGS_vmlinux	+= $(call ld-option, -X,)
@@ -1039,7 +1053,7 @@ HOST_LIBELF_LIBS = $(shell pkg-config libelf --libs 2>/dev/null || echo -lelf)
 
 ifdef CONFIG_STACK_VALIDATION
   has_libelf := $(call try-run,\
-		echo "int main() {}" | $(HOSTCC) $(KBUILD_HOSTLDFLAGS) -xc -o /dev/null $(HOST_LIBELF_LIBS) -,1,0)
+		echo "int main() {}" | $(HOSTCC) -xc -o /dev/null $(HOST_LIBELF_LIBS) -,1,0)
   ifeq ($(has_libelf),1)
     objtool_target := tools/objtool FORCE
   else
@@ -1084,7 +1098,7 @@ PHONY += autoksyms_recursive
 autoksyms_recursive: $(vmlinux-deps)
 ifdef CONFIG_TRIM_UNUSED_KSYMS
 	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/adjust_autoksyms.sh \
-	  "$(MAKE) -f $(srctree)/Makefile autoksyms_recursive"
+	  "$(MAKE) -f $(srctree)/Makefile vmlinux"
 endif
 
 # For the kernel to actually contain only the needed exported symbols,
@@ -1215,22 +1229,17 @@ endif
 # needs to be updated, so this check is forced on all builds
 
 uts_len := 64
-ifneq (,$(BUILD_NUMBER))
-	UTS_RELEASE=$(KERNELRELEASE)-ab$(BUILD_NUMBER)
-else
-	UTS_RELEASE=$(KERNELRELEASE)
-endif
 define filechk_utsrelease.h
-	if [ `echo -n "$(UTS_RELEASE)" | wc -c ` -gt $(uts_len) ]; then \
-	  echo '"$(UTS_RELEASE)" exceeds $(uts_len) characters' >&2;    \
-	  exit 1;                                                       \
-	fi;                                                             \
-	(echo \#define UTS_RELEASE \"$(UTS_RELEASE)\";)
+	if [ `echo -n "$(KERNELRELEASE)" | wc -c ` -gt $(uts_len) ]; then \
+	  echo '"$(KERNELRELEASE)" exceeds $(uts_len) characters' >&2;    \
+	  exit 1;                                                         \
+	fi;                                                               \
+	(echo \#define UTS_RELEASE \"$(KERNELRELEASE)\";)
 endef
 
 define filechk_version.h
 	(echo \#define LINUX_VERSION_CODE $(shell                         \
-	expr $(VERSION) \* 65536 + 0$(PATCHLEVEL) \* 256 + 255); \
+	expr $(VERSION) \* 65536 + 0$(PATCHLEVEL) \* 256 + 0$(SUBLEVEL)); \
 	echo '#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))';)
 endef
 
@@ -1422,6 +1431,9 @@ $(clean-dirs):
 vmlinuxclean:
 	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/link-vmlinux.sh clean
 	$(Q)$(if $(ARCH_POSTLINK), $(MAKE) -f $(ARCH_POSTLINK) clean)
+
+legoclean:
+	$(Q)$(CONFIG_SHELL) $(srctree)/scripts/lego/kclean.sh $(srctree)/.legofile
 
 clean: archclean vmlinuxclean
 

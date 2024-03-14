@@ -760,15 +760,10 @@ bool zone_watermark_ok(struct zone *z, unsigned int order,
 		unsigned int alloc_flags);
 bool zone_watermark_ok_safe(struct zone *z, unsigned int order,
 		unsigned long mark, int classzone_idx);
-/*
- * Memory initialization context, use to differentiate memory added by
- * the platform statically or via memory hotplug interface.
- */
-enum meminit_context {
-	MEMINIT_EARLY,
-	MEMINIT_HOTPLUG,
+enum memmap_context {
+	MEMMAP_EARLY,
+	MEMMAP_HOTPLUG,
 };
-
 extern void init_currently_empty_zone(struct zone *zone, unsigned long start_pfn,
 				     unsigned long size);
 
@@ -1156,16 +1151,13 @@ extern struct mem_section mem_section[NR_SECTION_ROOTS][SECTIONS_PER_ROOT];
 
 static inline struct mem_section *__nr_to_section(unsigned long nr)
 {
-	unsigned long root = SECTION_NR_TO_ROOT(nr);
-
-	if (unlikely(root >= NR_SECTION_ROOTS))
-		return NULL;
-
 #ifdef CONFIG_SPARSEMEM_EXTREME
-	if (!mem_section || !mem_section[root])
+	if (!mem_section)
 		return NULL;
 #endif
-	return &mem_section[root][nr & SECTION_ROOT_MASK];
+	if (!mem_section[SECTION_NR_TO_ROOT(nr)])
+		return NULL;
+	return &mem_section[SECTION_NR_TO_ROOT(nr)][nr & SECTION_ROOT_MASK];
 }
 extern int __section_nr(struct mem_section* ms);
 extern unsigned long usemap_size(void);

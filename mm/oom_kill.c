@@ -62,8 +62,6 @@ int sysctl_oom_dump_tasks = 1;
  * and mark_oom_victim
  */
 DEFINE_MUTEX(oom_lock);
-/* Serializes oom_score_adj and oom_score_adj_min updates */
-DEFINE_MUTEX(oom_adj_mutex);
 
 #ifdef CONFIG_NUMA
 /**
@@ -397,10 +395,17 @@ static void select_bad_process(struct oom_control *oc)
  * State information includes task's pid, uid, tgid, vm size, rss,
  * pgtables_bytes, swapents, oom_score_adj value, and name.
  */
-static void dump_tasks(struct mem_cgroup *memcg, const nodemask_t *nodemask)
+void dump_tasks(struct mem_cgroup *memcg, const nodemask_t *nodemask)
 {
 	struct task_struct *p;
 	struct task_struct *task;
+	unsigned long cur_rss_sum;
+	unsigned long heaviest_rss_sum = 0;
+	char heaviest_comm[TASK_COMM_LEN];
+	unsigned long total_rss_sum = 0;
+	pid_t heaviest_pid;
+
+#define K(x) ((x) << (PAGE_SHIFT-10))
 
 	pr_info("Tasks state (memory values in pages):\n");
 	pr_info("[  pid  ]   uid  tgid total_vm      rss pgtables_bytes swapents oom_score_adj name\n");
@@ -425,9 +430,23 @@ static void dump_tasks(struct mem_cgroup *memcg, const nodemask_t *nodemask)
 			mm_pgtables_bytes(task->mm),
 			get_mm_counter(task->mm, MM_SWAPENTS),
 			task->signal->oom_score_adj, task->comm);
+		cur_rss_sum = get_mm_rss(task->mm) +
+					get_mm_counter(task->mm, MM_SWAPENTS);
+		total_rss_sum += cur_rss_sum;
+		if (cur_rss_sum > heaviest_rss_sum) {
+			heaviest_rss_sum = cur_rss_sum;
+			strncpy(heaviest_comm, task->comm, TASK_COMM_LEN);
+			heaviest_pid = task->pid;
+		}
 		task_unlock(task);
 	}
 	rcu_read_unlock();
+	if (heaviest_rss_sum)
+		pr_info("heaviest_task_rss:%s(%d) size:%luKB, total:%luKB/%luKB\n",
+			heaviest_comm, heaviest_pid, K(heaviest_rss_sum),
+			K(total_rss_sum), K(totalram_pages));
+#undef K
+	ion_account_print_usage();
 }
 
 static void dump_header(struct oom_control *oc, struct task_struct *p)
@@ -1135,22 +1154,25 @@ bool out_of_memory(struct oom_control *oc)
 }
 
 /*
- * The pagefault handler calls here because some allocation has failed. We have
- * to take care of the memcg OOM here because this is the only safe context without
- * any locks held but let the oom killer triggered from the allocation context care
- * about the global OOM.
+ * The pagefault handler calls here because it is out of memory, so kill a
+ * memory-hogging task. If oom_lock is held by somebody else, a parallel oom
+ * killing is already in progress so do nothing.
  */
 void pagefault_out_of_memory(void)
 {
-	static DEFINE_RATELIMIT_STATE(pfoom_rs, DEFAULT_RATELIMIT_INTERVAL,
-				      DEFAULT_RATELIMIT_BURST);
+	struct oom_control oc = {
+		.zonelist = NULL,
+		.nodemask = NULL,
+		.memcg = NULL,
+		.gfp_mask = 0,
+		.order = 0,
+	};
 
 	if (mem_cgroup_oom_synchronize(true))
 		return;
 
-	if (fatal_signal_pending(current))
+	if (!mutex_trylock(&oom_lock))
 		return;
-
-	if (__ratelimit(&pfoom_rs))
-		pr_warn("Huh VM_FAULT_OOM leaked out to the #PF handler. Retrying PF\n");
+	out_of_memory(&oc);
+	mutex_unlock(&oom_lock);
 }

@@ -47,25 +47,18 @@
 #include <net/inet_ecn.h>
 #include <net/dst_metadata.h>
 
-void udp_v6_early_demux(struct sk_buff *);
-void tcp_v6_early_demux(struct sk_buff *);
 static void ip6_rcv_finish_core(struct net *net, struct sock *sk,
 				struct sk_buff *skb)
 {
-	if (READ_ONCE(net->ipv4.sysctl_ip_early_demux) &&
-	    !skb_dst(skb) && !skb->sk) {
-		switch (ipv6_hdr(skb)->nexthdr) {
-		case IPPROTO_TCP:
-			if (READ_ONCE(net->ipv4.sysctl_tcp_early_demux))
-				tcp_v6_early_demux(skb);
-			break;
-		case IPPROTO_UDP:
-			if (READ_ONCE(net->ipv4.sysctl_udp_early_demux))
-				udp_v6_early_demux(skb);
-			break;
-		}
-	}
+	void (*edemux)(struct sk_buff *skb);
 
+	if (net->ipv4.sysctl_ip_early_demux && !skb_dst(skb) && skb->sk == NULL) {
+		const struct inet6_protocol *ipprot;
+
+		ipprot = rcu_dereference(inet6_protos[ipv6_hdr(skb)->nexthdr]);
+		if (ipprot && (edemux = READ_ONCE(ipprot->early_demux)))
+			edemux(skb);
+	}
 	if (!skb_valid_dst(skb))
 		ip6_route_input(skb);
 }
@@ -135,6 +128,7 @@ static struct sk_buff *ip6_rcv_core(struct sk_buff *skb, struct net_device *dev,
 	struct inet6_dev *idev;
 
 	if (skb->pkt_type == PACKET_OTHERHOST) {
+		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_OPT_IP_OTHERHOST);
 		kfree_skb(skb);
 		return NULL;
 	}
@@ -148,6 +142,7 @@ static struct sk_buff *ip6_rcv_core(struct sk_buff *skb, struct net_device *dev,
 	if ((skb = skb_share_check(skb, GFP_ATOMIC)) == NULL ||
 	    !idev || unlikely(idev->cnf.disable_ipv6)) {
 		__IP6_INC_STATS(net, idev, IPSTATS_MIB_INDISCARDS);
+		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INDISCARDS1);
 		goto drop;
 	}
 
@@ -229,6 +224,16 @@ static struct sk_buff *ip6_rcv_core(struct sk_buff *skb, struct net_device *dev,
 	if (ipv6_addr_is_multicast(&hdr->saddr))
 		goto err;
 
+	/* While RFC4291 is not explicit about v4mapped addresses
+	 * in IPv6 headers, it seems clear linux dual-stack
+	 * model can not deal properly with these.
+	 * Security models could be fooled by ::ffff:127.0.0.1 for example.
+	 *
+	 * https://tools.ietf.org/html/draft-itojun-v6ops-v4mapped-harmful-02
+	 */
+	if (ipv6_addr_v4mapped(&hdr->saddr))
+		goto err;
+
 	skb->transport_header = skb->network_header + sizeof(*hdr);
 	IP6CB(skb)->nhoff = offsetof(struct ipv6hdr, nexthdr);
 
@@ -239,10 +244,12 @@ static struct sk_buff *ip6_rcv_core(struct sk_buff *skb, struct net_device *dev,
 		if (pkt_len + sizeof(struct ipv6hdr) > skb->len) {
 			__IP6_INC_STATS(net,
 					idev, IPSTATS_MIB_INTRUNCATEDPKTS);
+			DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INTRUNCATEDPKTS1);
 			goto drop;
 		}
 		if (pskb_trim_rcsum(skb, pkt_len + sizeof(struct ipv6hdr))) {
 			__IP6_INC_STATS(net, idev, IPSTATS_MIB_INHDRERRORS);
+			DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INHDRERRORS2);
 			goto drop;
 		}
 		hdr = ipv6_hdr(skb);
@@ -264,6 +271,7 @@ static struct sk_buff *ip6_rcv_core(struct sk_buff *skb, struct net_device *dev,
 	return skb;
 err:
 	__IP6_INC_STATS(net, idev, IPSTATS_MIB_INHDRERRORS);
+	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INHDRERRORS3);
 drop:
 	rcu_read_unlock();
 	kfree_skb(skb);
@@ -410,6 +418,7 @@ resubmit_final:
 			if (xfrm6_policy_check(NULL, XFRM_POLICY_IN, skb)) {
 				__IP6_INC_STATS(net, idev,
 						IPSTATS_MIB_INUNKNOWNPROTOS);
+				DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INUNKNOWNPROTOS1);
 				icmpv6_send(skb, ICMPV6_PARAMPROB,
 					    ICMPV6_UNK_NEXTHDR, nhoff);
 			}
@@ -425,6 +434,7 @@ resubmit_final:
 discard:
 	__IP6_INC_STATS(net, idev, IPSTATS_MIB_INDISCARDS);
 	rcu_read_unlock();
+	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INDISCARDS2);
 	kfree_skb(skb);
 	return 0;
 }

@@ -41,6 +41,10 @@
 #include <asm/byteorder.h>
 #include <uapi/linux/fs.h>
 
+#ifdef CONFIG_MMC_SRPMB
+#include <linux/mmc/ioctl.h>
+#endif
+
 struct backing_dev_info;
 struct bdi_writeback;
 struct bio;
@@ -942,9 +946,7 @@ static inline struct file *get_file(struct file *f)
 	atomic_long_inc(&f->f_count);
 	return f;
 }
-#define get_file_rcu_many(x, cnt)	\
-	atomic_long_add_unless(&(x)->f_count, (cnt), 0)
-#define get_file_rcu(x) get_file_rcu_many((x), 1)
+#define get_file_rcu(x) atomic_long_inc_not_zero(&(x)->f_count)
 #define fput_atomic(x)	atomic_long_add_unless(&(x)->f_count, -1, 1)
 #define file_count(x)	atomic_long_read(&(x)->f_count)
 
@@ -1790,6 +1792,10 @@ struct file_operations {
 	int (*dedupe_file_range)(struct file *, loff_t, struct file *, loff_t,
 			u64);
 	int (*fadvise)(struct file *, loff_t, loff_t, int);
+#ifdef CONFIG_MMC_SRPMB
+        long (*srpmb_access)(struct file *, unsigned int,
+                           unsigned long, struct mmc_ioc_cmd *);
+#endif
 } __randomize_layout;
 
 struct inode_operations {
@@ -2274,6 +2280,7 @@ extern int thaw_super(struct super_block *super);
 extern bool our_mnt(struct vfsmount *mnt);
 extern __printf(2, 3)
 int super_setup_bdi_name(struct super_block *sb, char *fmt, ...);
+int sec_super_setup_bdi_name(struct super_block *sb, char *fmt, ...);
 extern int super_setup_bdi(struct super_block *sb);
 
 extern int current_umask(void);
@@ -2783,6 +2790,7 @@ static inline ssize_t generic_write_sync(struct kiocb *iocb, ssize_t count)
 
 extern void emergency_sync(void);
 extern void emergency_remount(void);
+extern int intr_sync(int *);
 #ifdef CONFIG_BLOCK
 extern sector_t bmap(struct inode *, sector_t);
 #endif
@@ -3377,7 +3385,7 @@ void simple_transaction_set(struct file *file, size_t n);
  * All attributes contain a text representation of a numeric value
  * that are accessed with the get() and set() functions.
  */
-#define DEFINE_SIMPLE_ATTRIBUTE_XSIGNED(__fops, __get, __set, __fmt, __is_signed)	\
+#define DEFINE_SIMPLE_ATTRIBUTE(__fops, __get, __set, __fmt)		\
 static int __fops ## _open(struct inode *inode, struct file *file)	\
 {									\
 	__simple_attr_check_format(__fmt, 0ull);			\
@@ -3388,15 +3396,9 @@ static const struct file_operations __fops = {				\
 	.open	 = __fops ## _open,					\
 	.release = simple_attr_release,					\
 	.read	 = simple_attr_read,					\
-	.write	 = (__is_signed) ? simple_attr_write_signed : simple_attr_write,	\
+	.write	 = simple_attr_write,					\
 	.llseek	 = generic_file_llseek,					\
 }
-
-#define DEFINE_SIMPLE_ATTRIBUTE(__fops, __get, __set, __fmt)		\
-	DEFINE_SIMPLE_ATTRIBUTE_XSIGNED(__fops, __get, __set, __fmt, false)
-
-#define DEFINE_SIMPLE_ATTRIBUTE_SIGNED(__fops, __get, __set, __fmt)	\
-	DEFINE_SIMPLE_ATTRIBUTE_XSIGNED(__fops, __get, __set, __fmt, true)
 
 static inline __printf(1, 2)
 void __simple_attr_check_format(const char *fmt, ...)
@@ -3412,8 +3414,6 @@ ssize_t simple_attr_read(struct file *file, char __user *buf,
 			 size_t len, loff_t *ppos);
 ssize_t simple_attr_write(struct file *file, const char __user *buf,
 			  size_t len, loff_t *ppos);
-ssize_t simple_attr_write_signed(struct file *file, const char __user *buf,
-				 size_t len, loff_t *ppos);
 
 struct ctl_table;
 int proc_nr_files(struct ctl_table *table, int write,
@@ -3501,6 +3501,9 @@ static inline bool dir_relax_shared(struct inode *inode)
 
 extern bool path_noexec(const struct path *path);
 extern void inode_nohighmem(struct inode *inode);
+
+/* for Android P */
+#define AID_USE_ROOT_RESERVED KGIDT_INIT(5678)
 
 /* mm/fadvise.c */
 extern int vfs_fadvise(struct file *file, loff_t offset, loff_t len,

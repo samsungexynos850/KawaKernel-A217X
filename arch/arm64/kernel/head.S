@@ -137,8 +137,13 @@ preserve_boot_args:
 	mov	x21, x0				// x21=FDT
 
 	adr_l	x0, boot_args			// record the contents of
+#ifndef CONFIG_RANDOMIZE_BASE
 	stp	x21, x1, [x0]			// x0 .. x3 at kernel entry
 	stp	x2, x3, [x0, #16]
+#else
+	stp	x21, xzr, [x0]			// x0 .. x3 at kernel entry
+	stp	xzr, xzr, [x0, #16]
+#endif
 
 	dmb	sy				// needed before dc ivac with
 						// MMU off
@@ -202,7 +207,7 @@ ENDPROC(preserve_boot_args)
  * to be composed of multiple pages. (This effectively scales the end index).
  *
  *	vstart:	virtual address of start of range
- *	vend:	virtual address of end of range - we map [vstart, vend]
+ *	vend:	virtual address of end of range
  *	shift:	shift used to transform virtual address into index
  *	ptrs:	number of entries in page table
  *	istart:	index in table corresponding to vstart
@@ -239,18 +244,17 @@ ENDPROC(preserve_boot_args)
  *
  *	tbl:	location of page table
  *	rtbl:	address to be used for first level page table entry (typically tbl + PAGE_SIZE)
- *	vstart:	virtual address of start of range
- *	vend:	virtual address of end of range - we map [vstart, vend - 1]
+ *	vstart:	start address to map
+ *	vend:	end address to map - we map [vstart, vend]
  *	flags:	flags to use to map last level entries
  *	phys:	physical address corresponding to vstart - physical memory is contiguous
  *	pgds:	the number of pgd entries
  *
  * Temporaries:	istart, iend, tmp, count, sv - these need to be different registers
- * Preserves:	vstart, flags
- * Corrupts:	tbl, rtbl, vend, istart, iend, tmp, count, sv
+ * Preserves:	vstart, vend, flags
+ * Corrupts:	tbl, rtbl, istart, iend, tmp, count, sv
  */
 	.macro map_memory, tbl, rtbl, vstart, vend, flags, phys, pgds, istart, iend, tmp, count, sv
-	sub \vend, \vend, #1
 	add \rtbl, \tbl, #PAGE_SIZE
 	mov \sv, \rtbl
 	mov \count, #0
@@ -868,7 +872,6 @@ __primary_switch:
 
 	tlbi	vmalle1				// Remove any stale TLB entries
 	dsb	nsh
-	isb
 
 	msr	sctlr_el1, x19			// re-enable the MMU
 	isb

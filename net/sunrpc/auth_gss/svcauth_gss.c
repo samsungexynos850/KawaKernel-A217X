@@ -1079,32 +1079,27 @@ static int gss_read_proxy_verf(struct svc_rqst *rqstp,
 			       struct gssp_in_token *in_token)
 {
 	struct kvec *argv = &rqstp->rq_arg.head[0];
-	unsigned int length, pgto_offs, pgfrom_offs;
-	int pages, i, res, pgto, pgfrom;
-	size_t inlen, to_offs, from_offs;
+	unsigned int page_base, length;
+	int pages, i, res;
+	size_t inlen;
 
 	res = gss_read_common_verf(gc, argv, authp, in_handle);
 	if (res)
 		return res;
 
 	inlen = svc_getnl(argv);
-	if (inlen > (argv->iov_len + rqstp->rq_arg.page_len)) {
-		kfree(in_handle->data);
+	if (inlen > (argv->iov_len + rqstp->rq_arg.page_len))
 		return SVC_DENIED;
-	}
 
 	pages = DIV_ROUND_UP(inlen, PAGE_SIZE);
 	in_token->pages = kcalloc(pages, sizeof(struct page *), GFP_KERNEL);
-	if (!in_token->pages) {
-		kfree(in_handle->data);
+	if (!in_token->pages)
 		return SVC_DENIED;
-	}
 	in_token->page_base = 0;
 	in_token->page_len = inlen;
 	for (i = 0; i < pages; i++) {
 		in_token->pages[i] = alloc_page(GFP_KERNEL);
 		if (!in_token->pages[i]) {
-			kfree(in_handle->data);
 			gss_free_in_token_pages(in_token);
 			return SVC_DENIED;
 		}
@@ -1114,24 +1109,17 @@ static int gss_read_proxy_verf(struct svc_rqst *rqstp,
 	memcpy(page_address(in_token->pages[0]), argv->iov_base, length);
 	inlen -= length;
 
-	to_offs = length;
-	from_offs = rqstp->rq_arg.page_base;
+	i = 1;
+	page_base = rqstp->rq_arg.page_base;
 	while (inlen) {
-		pgto = to_offs >> PAGE_SHIFT;
-		pgfrom = from_offs >> PAGE_SHIFT;
-		pgto_offs = to_offs & ~PAGE_MASK;
-		pgfrom_offs = from_offs & ~PAGE_MASK;
-
-		length = min_t(unsigned int, inlen,
-			 min_t(unsigned int, PAGE_SIZE - pgto_offs,
-			       PAGE_SIZE - pgfrom_offs));
-		memcpy(page_address(in_token->pages[pgto]) + pgto_offs,
-		       page_address(rqstp->rq_arg.pages[pgfrom]) + pgfrom_offs,
+		length = min_t(unsigned int, inlen, PAGE_SIZE);
+		memcpy(page_address(in_token->pages[i]),
+		       page_address(rqstp->rq_arg.pages[i]) + page_base,
 		       length);
 
-		to_offs += length;
-		from_offs += length;
 		inlen -= length;
+		page_base = 0;
+		i++;
 	}
 	return 0;
 }
@@ -1771,14 +1759,11 @@ static int
 svcauth_gss_release(struct svc_rqst *rqstp)
 {
 	struct gss_svc_data *gsd = (struct gss_svc_data *)rqstp->rq_auth_data;
-	struct rpc_gss_wire_cred *gc;
+	struct rpc_gss_wire_cred *gc = &gsd->clcred;
 	struct xdr_buf *resbuf = &rqstp->rq_res;
 	int stat = -EINVAL;
 	struct sunrpc_net *sn = net_generic(SVC_NET(rqstp), sunrpc_net_id);
 
-	if (!gsd)
-		goto out;
-	gc = &gsd->clcred;
 	if (gc->gc_proc != RPC_GSS_PROC_DATA)
 		goto out;
 	/* Release can be called twice, but we only wrap once. */
@@ -1819,10 +1804,10 @@ out_err:
 	if (rqstp->rq_cred.cr_group_info)
 		put_group_info(rqstp->rq_cred.cr_group_info);
 	rqstp->rq_cred.cr_group_info = NULL;
-	if (gsd && gsd->rsci) {
+	if (gsd->rsci)
 		cache_put(&gsd->rsci->h, sn->rsc_cache);
-		gsd->rsci = NULL;
-	}
+	gsd->rsci = NULL;
+
 	return stat;
 }
 
@@ -1919,7 +1904,7 @@ gss_svc_init_net(struct net *net)
 		goto out2;
 	return 0;
 out2:
-	rsi_cache_destroy_net(net);
+	destroy_use_gss_proxy_proc_entry(net);
 out1:
 	rsc_cache_destroy_net(net);
 	return rv;

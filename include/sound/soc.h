@@ -808,7 +808,7 @@ struct snd_soc_component_driver {
 	const char *ignore_machine;
 	const char *topology_name_prefix;
 	int (*be_hw_params_fixup)(struct snd_soc_pcm_runtime *rtd,
-				  struct snd_pcm_hw_params *params);
+				  struct snd_pcm_hw_params *params, int stream);
 	bool use_dai_pcm_id;	/* use the DAI link PCM ID as PCM device number */
 	int be_pcm_base;	/* base device ID for all BE PCMs */
 };
@@ -929,7 +929,7 @@ struct snd_soc_dai_link {
 
 	/* optional hw_params re-writing for BE and FE sync */
 	int (*be_hw_params_fixup)(struct snd_soc_pcm_runtime *rtd,
-			struct snd_pcm_hw_params *params);
+			struct snd_pcm_hw_params *params, int stream);
 
 	/* machine stream operations */
 	const struct snd_soc_ops *ops;
@@ -1113,8 +1113,6 @@ struct snd_soc_card {
 	u32 pop_time;
 
 	void *drvdata;
-
-	spinlock_t dpcm_lock;
 };
 
 /* SoC machine DAI configuration, glues a codec and cpu DAI together */

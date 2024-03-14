@@ -7,8 +7,7 @@
 #include <linux/bio.h>
 #include <linux/blkdev.h>
 #include <linux/scatterlist.h>
-#include <linux/blkdev.h>
-#include <linux/blk-cgroup.h>
+#include <crypto/diskcipher.h>
 
 #include <trace/events/block.h>
 
@@ -488,9 +487,6 @@ static inline int ll_new_hw_segment(struct request_queue *q,
 	if (req->nr_phys_segments + nr_phys_segs > queue_max_segments(q))
 		goto no_merge;
 
-	if (!blk_cgroup_mergeable(req, bio))
-		goto no_merge;
-
 	if (blk_integrity_merge_bio(q, req, bio) == false)
 		goto no_merge;
 
@@ -514,6 +510,11 @@ int ll_back_merge_fn(struct request_queue *q, struct request *req,
 	if (blk_integrity_rq(req) &&
 	    integrity_req_gap_back_merge(req, bio))
 		return 0;
+
+#ifdef CONFIG_CRYPTO_DISKCIPHER
+	if (blk_try_merge(req, bio) != ELEVATOR_BACK_MERGE)
+		return 0;
+#endif
 	if (blk_rq_sectors(req) + bio_sectors(bio) >
 	    blk_rq_get_max_sectors(req, blk_rq_pos(req))) {
 		req_set_nomerge(q, req);
@@ -536,6 +537,11 @@ int ll_front_merge_fn(struct request_queue *q, struct request *req,
 	if (blk_integrity_rq(req) &&
 	    integrity_req_gap_front_merge(req, bio))
 		return 0;
+
+#ifdef CONFIG_CRYPTO_DISKCIPHER
+	if (blk_try_merge(req, bio) != ELEVATOR_FRONT_MERGE)
+		return 0;
+#endif
 	if (blk_rq_sectors(req) + bio_sectors(bio) >
 	    blk_rq_get_max_sectors(req, bio->bi_iter.bi_sector)) {
 		req_set_nomerge(q, req);
@@ -612,9 +618,6 @@ static int ll_merge_requests_fn(struct request_queue *q, struct request *req,
 	}
 
 	if (total_phys_segments > queue_max_segments(q))
-		return 0;
-
-	if (!blk_cgroup_mergeable(req, next->bio))
 		return 0;
 
 	if (blk_integrity_merge_rq(q, req, next) == false)
@@ -722,6 +725,8 @@ static struct request *attempt_merge(struct request_queue *q,
 	    !blk_write_same_mergeable(req->bio, next->bio))
 		return NULL;
 
+	if (!crypto_diskcipher_blk_mergeble(req->bio, next->bio))
+		return NULL;
 	/*
 	 * Don't allow merge of different write hints, or for a hint with
 	 * non-hint IO.
@@ -851,10 +856,6 @@ bool blk_rq_merge_ok(struct request *rq, struct bio *bio)
 	if (rq->rq_disk != bio->bi_disk || req_no_special_merge(rq))
 		return false;
 
-	/* don't merge across cgroup boundaries */
-	if (!blk_cgroup_mergeable(rq, bio))
-		return false;
-
 	/* only merge integrity protected bio into ditto rq */
 	if (blk_integrity_merge_bio(rq->q, rq, bio) == false)
 		return false;
@@ -878,9 +879,14 @@ enum elv_merge blk_try_merge(struct request *rq, struct bio *bio)
 {
 	if (blk_discard_mergable(rq))
 		return ELEVATOR_DISCARD_MERGE;
-	else if (blk_rq_pos(rq) + blk_rq_sectors(rq) == bio->bi_iter.bi_sector)
+	else if (blk_rq_pos(rq) + blk_rq_sectors(rq) == bio->bi_iter.bi_sector) {
+		if (!crypto_diskcipher_blk_mergeble(rq->bio, bio))
+			return ELEVATOR_NO_MERGE;
 		return ELEVATOR_BACK_MERGE;
-	else if (blk_rq_pos(rq) - bio_sectors(bio) == bio->bi_iter.bi_sector)
+	} else if (blk_rq_pos(rq) - bio_sectors(bio) == bio->bi_iter.bi_sector) {
+		if (!crypto_diskcipher_blk_mergeble(bio, rq->bio))
+			return ELEVATOR_NO_MERGE;
 		return ELEVATOR_FRONT_MERGE;
+	}
 	return ELEVATOR_NO_MERGE;
 }

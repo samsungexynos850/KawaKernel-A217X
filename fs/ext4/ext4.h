@@ -503,7 +503,7 @@ enum {
  *
  * It's not paranoia if the Murphy's Law really *is* out to get you.  :-)
  */
-#define TEST_FLAG_VALUE(FLAG) (EXT4_##FLAG##_FL == (1U << EXT4_INODE_##FLAG))
+#define TEST_FLAG_VALUE(FLAG) (EXT4_##FLAG##_FL == (1 << EXT4_INODE_##FLAG))
 #define CHECK_FLAG_VALUE(FLAG) BUILD_BUG_ON(!TEST_FLAG_VALUE(FLAG))
 
 static inline void ext4_check_flag_values(void)
@@ -1429,6 +1429,9 @@ struct ext4_sb_info {
 	unsigned long s_ext_extents;
 #endif
 
+	/* Reserved inodes count */
+	s64 s_r_inodes_count;
+
 	/* for buddy allocator */
 	struct ext4_group_info ** __rcu *s_group_info;
 	struct inode *s_buddy_cache;
@@ -1914,6 +1917,11 @@ static inline int ext4_forced_shutdown(struct ext4_sb_info *sbi)
 #define EXT4_DEF_MAX_BATCH_TIME	15000 /* 15ms */
 
 /*
+ * Default reserved inode count
+ */
+#define EXT4_DEF_RESERVE_INODE 8192
+
+/*
  * Minimum number of groups in a flexgroup before we separate out
  * directories into the first block group of a flexgroup
  */
@@ -2326,47 +2334,23 @@ static inline bool ext4_encrypted_inode(struct inode *inode)
 }
 
 #ifdef CONFIG_EXT4_FS_ENCRYPTION
-static inline void ext4_fname_from_fscrypt_name(struct ext4_filename *dst,
-						const struct fscrypt_name *src)
-{
-	memset(dst, 0, sizeof(*dst));
-
-	dst->usr_fname = src->usr_fname;
-	dst->disk_name = src->disk_name;
-	dst->hinfo.hash = src->hash;
-	dst->hinfo.minor_hash = src->minor_hash;
-	dst->crypto_buf = src->crypto_buf;
-}
-
 static inline int ext4_fname_setup_filename(struct inode *dir,
-					    const struct qstr *iname,
-					    int lookup,
-					    struct ext4_filename *fname)
+			const struct qstr *iname,
+			int lookup, struct ext4_filename *fname)
 {
 	struct fscrypt_name name;
 	int err;
+
+	memset(fname, 0, sizeof(struct ext4_filename));
 
 	err = fscrypt_setup_filename(dir, iname, lookup, &name);
-	if (err)
-		return err;
 
-	ext4_fname_from_fscrypt_name(fname, &name);
-	return 0;
-}
-
-static inline int ext4_fname_prepare_lookup(struct inode *dir,
-					    struct dentry *dentry,
-					    struct ext4_filename *fname)
-{
-	struct fscrypt_name name;
-	int err;
-
-	err = fscrypt_prepare_lookup(dir, dentry, &name);
-	if (err)
-		return err;
-
-	ext4_fname_from_fscrypt_name(fname, &name);
-	return 0;
+	fname->usr_fname = name.usr_fname;
+	fname->disk_name = name.disk_name;
+	fname->hinfo.hash = name.hash;
+	fname->hinfo.minor_hash = name.minor_hash;
+	fname->crypto_buf = name.crypto_buf;
+	return err;
 }
 
 static inline void ext4_fname_free_filename(struct ext4_filename *fname)
@@ -2380,27 +2364,19 @@ static inline void ext4_fname_free_filename(struct ext4_filename *fname)
 	fname->usr_fname = NULL;
 	fname->disk_name.name = NULL;
 }
-#else /* !CONFIG_EXT4_FS_ENCRYPTION */
+#else
 static inline int ext4_fname_setup_filename(struct inode *dir,
-					    const struct qstr *iname,
-					    int lookup,
-					    struct ext4_filename *fname)
+		const struct qstr *iname,
+		int lookup, struct ext4_filename *fname)
 {
 	fname->usr_fname = iname;
 	fname->disk_name.name = (unsigned char *) iname->name;
 	fname->disk_name.len = iname->len;
 	return 0;
 }
-
-static inline int ext4_fname_prepare_lookup(struct inode *dir,
-					    struct dentry *dentry,
-					    struct ext4_filename *fname)
-{
-	return ext4_fname_setup_filename(dir, &dentry->d_name, 1, fname);
-}
-
 static inline void ext4_fname_free_filename(struct ext4_filename *fname) { }
-#endif /* !CONFIG_EXT4_FS_ENCRYPTION */
+
+#endif
 
 /* dir.c */
 extern int __ext4_check_dir_entry(const char *, unsigned int, struct inode *,
@@ -2427,8 +2403,7 @@ void ext4_insert_dentry(struct inode *inode,
 			struct ext4_filename *fname);
 static inline void ext4_update_dx_flag(struct inode *inode)
 {
-	if (!ext4_has_feature_dir_index(inode->i_sb) &&
-	    ext4_test_inode_flag(inode, EXT4_INODE_INDEX)) {
+	if (!ext4_has_feature_dir_index(inode->i_sb)) {
 		/* ext4_iget() should have caught this... */
 		WARN_ON_ONCE(ext4_has_feature_metadata_csum(inode->i_sb));
 		ext4_clear_inode_flag(inode, EXT4_INODE_INDEX);
@@ -2504,6 +2479,7 @@ extern int ext4_group_add_blocks(handle_t *handle, struct super_block *sb,
 				ext4_fsblk_t block, unsigned long count);
 extern int ext4_trim_fs(struct super_block *, struct fstrim_range *);
 extern void ext4_process_freed_data(struct super_block *sb, tid_t commit_tid);
+extern ssize_t ext4_mb_freefrag_show(struct ext4_sb_info *sbi, char *buf);
 
 /* inode.c */
 int ext4_inode_is_fast_symlink(struct inode *inode);
@@ -2799,6 +2775,12 @@ static inline int ext4_has_metadata_csum(struct super_block *sb)
 	return ext4_has_feature_metadata_csum(sb) &&
 	       (EXT4_SB(sb)->s_chksum_driver != NULL);
 }
+
+extern void print_iloc_info(struct super_block *sb, struct ext4_iloc iloc);
+extern void print_bh(struct super_block *sb,
+		struct buffer_head *bh, int start, int len);
+extern void print_block_data(struct super_block *sb, sector_t blocknr,
+		unsigned char *data_to_dump, int start, int len);
 
 static inline int ext4_has_group_desc_csum(struct super_block *sb)
 {
@@ -3180,9 +3162,9 @@ extern void ext4_release_system_zone(struct super_block *sb);
 extern int ext4_setup_system_zone(struct super_block *sb);
 extern int __init ext4_init_system_zone(void);
 extern void ext4_exit_system_zone(void);
-extern int ext4_inode_block_valid(struct inode *inode,
-				  ext4_fsblk_t start_blk,
-				  unsigned int count);
+extern int ext4_data_block_valid(struct ext4_sb_info *sbi,
+				 ext4_fsblk_t start_blk,
+				 unsigned int count);
 extern int ext4_check_blockref(const char *, unsigned int,
 			       struct inode *, __le32 *, unsigned int);
 

@@ -750,7 +750,6 @@ void usb_hcd_poll_rh_status(struct usb_hcd *hcd)
 {
 	struct urb	*urb;
 	int		length;
-	int		status;
 	unsigned long	flags;
 	char		buffer[6];	/* Any root hubs with > 31 ports? */
 
@@ -768,17 +767,11 @@ void usb_hcd_poll_rh_status(struct usb_hcd *hcd)
 		if (urb) {
 			clear_bit(HCD_FLAG_POLL_PENDING, &hcd->flags);
 			hcd->status_urb = NULL;
-			if (urb->transfer_buffer_length >= length) {
-				status = 0;
-			} else {
-				status = -EOVERFLOW;
-				length = urb->transfer_buffer_length;
-			}
 			urb->actual_length = length;
 			memcpy(urb->transfer_buffer, buffer, length);
 
 			usb_hcd_unlink_urb_from_ep(hcd, urb);
-			usb_hcd_giveback_urb(hcd, urb, status);
+			usb_hcd_giveback_urb(hcd, urb, 0);
 		} else {
 			length = 0;
 			set_bit(HCD_FLAG_POLL_PENDING, &hcd->flags);
@@ -1670,13 +1663,6 @@ int usb_hcd_submit_urb (struct urb *urb, gfp_t mem_flags)
 		urb->hcpriv = NULL;
 		INIT_LIST_HEAD(&urb->urb_list);
 		atomic_dec(&urb->use_count);
-		/*
-		 * Order the write of urb->use_count above before the read
-		 * of urb->reject below.  Pairs with the memory barriers in
-		 * usb_kill_urb() and usb_poison_urb().
-		 */
-		smp_mb__after_atomic();
-
 		atomic_dec(&urb->dev->urbnum);
 		if (atomic_read(&urb->reject))
 			wake_up(&usb_kill_urb_queue);
@@ -1786,13 +1772,6 @@ static void __usb_hcd_giveback_urb(struct urb *urb)
 
 	usb_anchor_resume_wakeups(anchor);
 	atomic_dec(&urb->use_count);
-	/*
-	 * Order the write of urb->use_count above before the read
-	 * of urb->reject below.  Pairs with the memory barriers in
-	 * usb_kill_urb() and usb_poison_urb().
-	 */
-	smp_mb__after_atomic();
-
 	if (unlikely(atomic_read(&urb->reject)))
 		wake_up(&usb_kill_urb_queue);
 	usb_put_urb(urb);
@@ -1805,6 +1784,7 @@ static void usb_giveback_urb_bh(unsigned long param)
 
 	spin_lock_irq(&bh->lock);
 	bh->running = true;
+ restart:
 	list_replace_init(&bh->head, &local_list);
 	spin_unlock_irq(&bh->lock);
 
@@ -1818,17 +1798,10 @@ static void usb_giveback_urb_bh(unsigned long param)
 		bh->completing_ep = NULL;
 	}
 
-	/*
-	 * giveback new URBs next time to prevent this function
-	 * from not exiting for a long time.
-	 */
+	/* check if there are new URBs to giveback */
 	spin_lock_irq(&bh->lock);
-	if (!list_empty(&bh->head)) {
-		if (bh->high_prio)
-			tasklet_hi_schedule(&bh->bh);
-		else
-			tasklet_schedule(&bh->bh);
-	}
+	if (!list_empty(&bh->head))
+		goto restart;
 	bh->running = false;
 	spin_unlock_irq(&bh->lock);
 }
@@ -1853,7 +1826,7 @@ static void usb_giveback_urb_bh(unsigned long param)
 void usb_hcd_giveback_urb(struct usb_hcd *hcd, struct urb *urb, int status)
 {
 	struct giveback_urb_bh *bh;
-	bool running;
+	bool running, high_prio_bh;
 
 	/* pass status to tasklet via unlinked */
 	if (likely(!urb->unlinked))
@@ -1864,10 +1837,13 @@ void usb_hcd_giveback_urb(struct usb_hcd *hcd, struct urb *urb, int status)
 		return;
 	}
 
-	if (usb_pipeisoc(urb->pipe) || usb_pipeint(urb->pipe))
+	if (usb_pipeisoc(urb->pipe) || usb_pipeint(urb->pipe)) {
 		bh = &hcd->high_prio_bh;
-	else
+		high_prio_bh = true;
+	} else {
 		bh = &hcd->low_prio_bh;
+		high_prio_bh = false;
+	}
 
 	spin_lock(&bh->lock);
 	list_add_tail(&urb->urb_list, &bh->head);
@@ -1876,7 +1852,7 @@ void usb_hcd_giveback_urb(struct usb_hcd *hcd, struct urb *urb, int status)
 
 	if (running)
 		;
-	else if (bh->high_prio)
+	else if (high_prio_bh)
 		tasklet_hi_schedule(&bh->bh);
 	else
 		tasklet_schedule(&bh->bh);
@@ -2267,7 +2243,7 @@ int hcd_bus_suspend(struct usb_device *rhdev, pm_message_t msg)
 	int		status;
 	int		old_state = hcd->state;
 
-	dev_dbg(&rhdev->dev, "bus %ssuspend, wakeup %d\n",
+	dev_info(&rhdev->dev, "bus %ssuspend, wakeup %d\n",
 			(PMSG_IS_AUTO(msg) ? "auto-" : ""),
 			rhdev->do_remote_wakeup);
 	if (HCD_DEAD(hcd)) {
@@ -2296,7 +2272,7 @@ int hcd_bus_suspend(struct usb_device *rhdev, pm_message_t msg)
 
 			status = hcd->driver->hub_status_data(hcd, buffer);
 			if (status != 0) {
-				dev_dbg(&rhdev->dev, "suspend raced with wakeup event\n");
+				dev_err(&rhdev->dev, "suspend raced with wakeup event\n");
 				hcd_bus_resume(rhdev, PMSG_AUTO_RESUME);
 				status = -EBUSY;
 			}
@@ -2320,10 +2296,10 @@ int hcd_bus_resume(struct usb_device *rhdev, pm_message_t msg)
 	int		status;
 	int		old_state = hcd->state;
 
-	dev_dbg(&rhdev->dev, "usb %sresume\n",
+	dev_info(&rhdev->dev, "usb %sresume\n",
 			(PMSG_IS_AUTO(msg) ? "auto-" : ""));
 	if (HCD_DEAD(hcd)) {
-		dev_dbg(&rhdev->dev, "skipped %s of dead bus\n", "resume");
+		dev_err(&rhdev->dev, "skipped %s of dead bus\n", "resume");
 		return 0;
 	}
 
@@ -2345,7 +2321,6 @@ int hcd_bus_resume(struct usb_device *rhdev, pm_message_t msg)
 	if (status == 0) {
 		struct usb_device *udev;
 		int port1;
-
 		spin_lock_irq(&hcd_root_hub_lock);
 		if (!HCD_DEAD(hcd)) {
 			usb_set_device_state(rhdev, rhdev->actconfig
@@ -2884,7 +2859,6 @@ int usb_add_hcd(struct usb_hcd *hcd,
 
 	/* initialize tasklets */
 	init_giveback_urb_bh(&hcd->high_prio_bh);
-	hcd->high_prio_bh.high_prio = true;
 	init_giveback_urb_bh(&hcd->low_prio_bh);
 
 	/* enable irqs just before we start the controller,

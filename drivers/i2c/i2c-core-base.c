@@ -32,7 +32,6 @@
 #include <linux/i2c-smbus.h>
 #include <linux/idr.h>
 #include <linux/init.h>
-#include <linux/interrupt.h>
 #include <linux/irqflags.h>
 #include <linux/jump_label.h>
 #include <linux/kernel.h>
@@ -47,6 +46,7 @@
 #include <linux/property.h>
 #include <linux/rwsem.h>
 #include <linux/slab.h>
+#include <linux/debug-snapshot.h>
 
 #include "i2c-core.h"
 
@@ -263,14 +263,13 @@ EXPORT_SYMBOL_GPL(i2c_recover_bus);
 static void i2c_init_recovery(struct i2c_adapter *adap)
 {
 	struct i2c_bus_recovery_info *bri = adap->bus_recovery_info;
-	char *err_str, *err_level = KERN_ERR;
+	char *err_str;
 
 	if (!bri)
 		return;
 
 	if (!bri->recover_bus) {
-		err_str = "no suitable method provided";
-		err_level = KERN_DEBUG;
+		err_str = "no recover_bus() found";
 		goto err;
 	}
 
@@ -300,7 +299,7 @@ static void i2c_init_recovery(struct i2c_adapter *adap)
 
 	return;
  err:
-	dev_printk(err_level, &adap->dev, "Not using recovery: %s\n", err_str);
+	dev_err(&adap->dev, "Not using recovery: %s\n", err_str);
 	adap->bus_recovery_info = NULL;
 }
 
@@ -458,8 +457,6 @@ static void i2c_device_shutdown(struct device *dev)
 	driver = to_i2c_driver(dev->driver);
 	if (driver->shutdown)
 		driver->shutdown(client);
-	else if (client->irq > 0)
-		disable_irq(client->irq);
 }
 
 static void i2c_client_dev_release(struct device *dev)
@@ -558,6 +555,10 @@ static int i2c_check_addr_validity(unsigned int addr, unsigned short flags)
 	if (flags & I2C_CLIENT_TEN) {
 		/* 10-bit address, all values are valid */
 		if (addr > 0x3ff)
+			return -EINVAL;
+	} else if (flags & I2C_CLIENT_SPEEDY) {
+		/* 12-bit address for SPEEDY, all values are valid */
+		if (addr > 0xfff)
 			return -EINVAL;
 	} else {
 		/* 7-bit address, reject the general call address */
@@ -1296,8 +1297,8 @@ static int i2c_register_adapter(struct i2c_adapter *adap)
 
 	/* create pre-declared device nodes */
 	of_i2c_register_devices(adap);
-	i2c_acpi_install_space_handler(adap);
 	i2c_acpi_register_devices(adap);
+	i2c_acpi_install_space_handler(adap);
 
 	if (adap->nr < __i2c_first_dynamic_bus_num)
 		i2c_scan_static_board_info(adap);
@@ -1974,7 +1975,9 @@ int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 			i2c_lock_bus(adap, I2C_LOCK_SEGMENT);
 		}
 
+		dbg_snapshot_i2c(adap, msgs, num, DSS_FLAG_IN);
 		ret = __i2c_transfer(adap, msgs, num);
+		dbg_snapshot_i2c(adap, msgs, num, DSS_FLAG_OUT);
 		i2c_unlock_bus(adap, I2C_LOCK_SEGMENT);
 
 		return ret;
@@ -2273,9 +2276,8 @@ void i2c_put_adapter(struct i2c_adapter *adap)
 	if (!adap)
 		return;
 
-	module_put(adap->owner);
-	/* Should be last, otherwise we risk use-after-free with 'adap' */
 	put_device(&adap->dev);
+	module_put(adap->owner);
 }
 EXPORT_SYMBOL(i2c_put_adapter);
 

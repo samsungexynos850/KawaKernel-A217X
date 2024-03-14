@@ -435,18 +435,23 @@ static void __gre_xmit(struct sk_buff *skb, struct net_device *dev,
 		       __be16 proto)
 {
 	struct ip_tunnel *tunnel = netdev_priv(dev);
-	__be16 flags = tunnel->parms.o_flags;
+
+	if (tunnel->parms.o_flags & TUNNEL_SEQ)
+		tunnel->o_seqno++;
 
 	/* Push GRE header. */
 	gre_build_header(skb, tunnel->tun_hlen,
-			 flags, proto, tunnel->parms.o_key,
-			 (flags & TUNNEL_SEQ) ? htonl(tunnel->o_seqno++) : 0);
+			 tunnel->parms.o_flags, proto, tunnel->parms.o_key,
+			 htonl(tunnel->o_seqno));
 
 	ip_tunnel_xmit(skb, dev, tnl_params, tnl_params->protocol);
 }
 
 static int gre_handle_offloads(struct sk_buff *skb, bool csum)
 {
+	if (csum && skb_checksum_start(skb) < skb->data)
+	return -EINVAL;
+
 	return iptunnel_handle_offloads(skb, csum ? SKB_GSO_GRE_CSUM : SKB_GSO_GRE);
 }
 
@@ -574,6 +579,7 @@ static void erspan_fb_xmit(struct sk_buff *skb, struct net_device *dev)
 	int tunnel_hlen;
 	int version;
 	int nhoff;
+	int thoff;
 
 	tun_info = skb_tunnel_info(skb);
 	if (unlikely(!tun_info || !(tun_info->mode & IP_TUNNEL_INFO_TX) ||
@@ -608,16 +614,10 @@ static void erspan_fb_xmit(struct sk_buff *skb, struct net_device *dev)
 	    (ntohs(ip_hdr(skb)->tot_len) > skb->len - nhoff))
 		truncate = true;
 
-	if (skb->protocol == htons(ETH_P_IPV6)) {
-		int thoff;
-
-		if (skb_transport_header_was_set(skb))
-			thoff = skb_transport_header(skb) - skb_mac_header(skb);
-		else
-			thoff = nhoff + sizeof(struct ipv6hdr);
-		if (ntohs(ipv6_hdr(skb)->payload_len) > skb->len - thoff)
-			truncate = true;
-	}
+	thoff = skb_transport_header(skb) - skb_mac_header(skb);
+	if (skb->protocol == htons(ETH_P_IPV6) &&
+	    (ntohs(ipv6_hdr(skb)->payload_len) > skb->len - thoff))
+		truncate = true;
 
 	if (version == 1) {
 		erspan_build_header(skb, ntohl(tunnel_id_to_key32(key->tun_id)),
@@ -683,7 +683,9 @@ static netdev_tx_t ipgre_xmit(struct sk_buff *skb,
 	}
 
 	if (dev->header_ops) {
-		if (skb_cow_head(skb, 0))
+		/* Need space for new headers */
+		if (skb_cow_head(skb, dev->needed_headroom -
+				      (tunnel->hlen + sizeof(struct iphdr))))
 			goto free_skb;
 
 		tnl_params = (const struct iphdr *)skb->data;
@@ -693,10 +695,6 @@ static netdev_tx_t ipgre_xmit(struct sk_buff *skb,
 		 */
 		skb_pull(skb, tunnel->hlen + sizeof(struct iphdr));
 		skb_reset_mac_header(skb);
-
-		if (skb->ip_summed == CHECKSUM_PARTIAL &&
-		    skb_checksum_start(skb) < skb->data)
-			goto free_skb;
 	} else {
 		if (skb_cow_head(skb, dev->needed_headroom))
 			goto free_skb;
@@ -805,11 +803,7 @@ static void ipgre_link_update(struct net_device *dev, bool set_mtu)
 	len = tunnel->tun_hlen - len;
 	tunnel->hlen = tunnel->hlen + len;
 
-	if (dev->header_ops)
-		dev->hard_header_len += len;
-	else
-		dev->needed_headroom += len;
-
+	dev->needed_headroom = dev->needed_headroom + len;
 	if (set_mtu)
 		dev->mtu = max_t(int, dev->mtu - len, 68);
 
@@ -1012,7 +1006,6 @@ static void __gre_tunnel_init(struct net_device *dev)
 	tunnel->parms.iph.protocol = IPPROTO_GRE;
 
 	tunnel->hlen = tunnel->tun_hlen + tunnel->encap_hlen;
-	dev->needed_headroom = tunnel->hlen + sizeof(tunnel->parms.iph);
 
 	dev->features		|= GRE_FEATURES;
 	dev->hw_features	|= GRE_FEATURES;
@@ -1056,14 +1049,10 @@ static int ipgre_tunnel_init(struct net_device *dev)
 				return -EINVAL;
 			dev->flags = IFF_BROADCAST;
 			dev->header_ops = &ipgre_header_ops;
-			dev->hard_header_len = tunnel->hlen + sizeof(*iph);
-			dev->needed_headroom = 0;
 		}
 #endif
 	} else if (!tunnel->collect_md) {
 		dev->header_ops = &ipgre_header_ops;
-		dev->hard_header_len = tunnel->hlen + sizeof(*iph);
-		dev->needed_headroom = 0;
 	}
 
 	return ip_tunnel_init(dev);

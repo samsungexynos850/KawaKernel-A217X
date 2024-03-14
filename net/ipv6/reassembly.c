@@ -127,6 +127,7 @@ static int ip6_frag_queue(struct frag_queue *fq, struct sk_buff *skb,
 			((u8 *)(fhdr + 1) - (u8 *)(ipv6_hdr(skb) + 1)));
 
 	if ((unsigned int)end > IPV6_MAXPLEN) {
+		DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INHDRERRORS15);
 		*prob_offset = (u8 *)&fhdr->frag_off - skb_network_header(skb);
 		/* note that if prob_offset is set, the skb is freed elsewhere,
 		 * we do not free it here.
@@ -161,6 +162,7 @@ static int ip6_frag_queue(struct frag_queue *fq, struct sk_buff *skb,
 			/* RFC2460 says always send parameter problem in
 			 * this case. -DaveM
 			 */
+			DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INHDRERRORS16);
 			*prob_offset = offsetof(struct ipv6hdr, payload_len);
 			return -1;
 		}
@@ -240,6 +242,7 @@ discard_fq:
 	__IP6_INC_STATS(net, ip6_dst_idev(skb_dst(skb)),
 			IPSTATS_MIB_REASMFAILS);
 err:
+	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_REASMFAILS1);
 	kfree_skb(skb);
 	return err;
 }
@@ -347,7 +350,7 @@ static int ipv6_frag_rcv(struct sk_buff *skb)
 	hdr = ipv6_hdr(skb);
 	fhdr = (struct frag_hdr *)skb_transport_header(skb);
 
-	if (!(fhdr->frag_off & htons(IP6_OFFSET | IP6_MF))) {
+	if (!(fhdr->frag_off & htons(0xFFF9))) {
 		/* It is not a fragmented frame */
 		skb->transport_header += sizeof(struct frag_hdr);
 		__IP6_INC_STATS(net,
@@ -355,8 +358,6 @@ static int ipv6_frag_rcv(struct sk_buff *skb)
 
 		IP6CB(skb)->nhoff = (u8 *)fhdr - skb_network_header(skb);
 		IP6CB(skb)->flags |= IP6SKB_FRAGMENTED;
-		IP6CB(skb)->frag_max_size = ntohs(hdr->payload_len) +
-					    sizeof(struct ipv6hdr);
 		return 1;
 	}
 
@@ -384,12 +385,14 @@ static int ipv6_frag_rcv(struct sk_buff *skb)
 	}
 
 	__IP6_INC_STATS(net, ip6_dst_idev(skb_dst(skb)), IPSTATS_MIB_REASMFAILS);
+	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_REASMFAILS2);
 	kfree_skb(skb);
 	return -1;
 
 fail_hdr:
 	__IP6_INC_STATS(net, __in6_dev_get_safely(skb->dev),
 			IPSTATS_MIB_INHDRERRORS);
+	DROPDUMP_QUEUE_SKB(skb, NET_DROPDUMP_IPSTATS_MIB_INHDRERRORS17);
 	icmpv6_param_prob(skb, ICMPV6_HDR_FIELD, skb_network_header_len(skb));
 	return -1;
 }

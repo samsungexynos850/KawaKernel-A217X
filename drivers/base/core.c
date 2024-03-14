@@ -26,6 +26,8 @@
 #include <linux/netdevice.h>
 #include <linux/sched/signal.h>
 #include <linux/sysfs.h>
+#include <linux/i2c.h>
+#include <linux/sec_debug.h>
 
 #include "base.h"
 #include "power/power.h"
@@ -93,16 +95,6 @@ void device_links_read_unlock(int not_used)
 }
 #endif /* !CONFIG_SRCU */
 
-static bool device_is_ancestor(struct device *dev, struct device *target)
-{
-	while (target->parent) {
-		target = target->parent;
-		if (dev == target)
-			return true;
-	}
-	return false;
-}
-
 /**
  * device_is_dependent - Check if one device depends on another one
  * @dev: Device to check dependencies for.
@@ -116,12 +108,7 @@ static int device_is_dependent(struct device *dev, void *target)
 	struct device_link *link;
 	int ret;
 
-	/*
-	 * The "ancestors" check is needed to catch the case when the target
-	 * device has not been completely initialized yet and it is still
-	 * missing from the list of children of its parent device.
-	 */
-	if (dev == target || device_is_ancestor(dev, target))
+	if (dev == target)
 		return 1;
 
 	ret = device_for_each_child(dev, target, device_is_dependent);
@@ -1682,7 +1669,6 @@ void device_initialize(struct device *dev)
 	device_pm_init(dev);
 	set_dev_node(dev, -1);
 #ifdef CONFIG_GENERIC_MSI_IRQ
-	raw_spin_lock_init(&dev->msi_lock);
 	INIT_LIST_HEAD(&dev->msi_list);
 #endif
 	INIT_LIST_HEAD(&dev->links.consumers);
@@ -3119,12 +3105,45 @@ out:
 }
 EXPORT_SYMBOL_GPL(device_move);
 
+#ifdef CONFIG_SEC_DEBUG_PM_DEVICE_INFO
+static void *get_cls_shutdown_func(struct device *dev)
+{
+	if (!dev || !dev->class)
+		return NULL;
+
+	return dev->class->shutdown_pre;
+}
+
+static void *get_bus_shutdown_func(struct device *dev)
+{
+	if (!dev || !dev->bus || !dev->driver)
+		return NULL;
+
+	if (dev->bus == &i2c_bus_type)
+		return to_i2c_driver(dev->driver)->shutdown;
+	else
+		return dev->bus->shutdown;
+}
+
+static void *get_drv_shutdown_func(struct device *dev)
+{
+	if (!dev || !dev->bus || !dev->driver)
+		return NULL;
+
+	if (dev->bus == &platform_bus_type)
+		return to_platform_driver(dev->driver)->shutdown;
+	else
+		return dev->driver->shutdown;
+}
+#endif /* SEC_DEBUG_PM_DEVICE_INFO */
+
 /**
  * device_shutdown - call ->shutdown() on each device to shutdown.
  */
 void device_shutdown(void)
 {
 	struct device *dev, *parent;
+	u64 before, after;
 
 	wait_for_device_probe();
 	device_block_probing();
@@ -3132,6 +3151,7 @@ void device_shutdown(void)
 	cpufreq_suspend();
 
 	spin_lock(&devices_kset->list_lock);
+	secdbg_base_set_task_in_dev_shutdown((uint64_t)current);
 	/*
 	 * Walk the devices list backward, shutting down each in turn.
 	 * Beware that device unplug events may also start pulling
@@ -3141,6 +3161,7 @@ void device_shutdown(void)
 		dev = list_entry(devices_kset->list.prev, struct device,
 				kobj.entry);
 
+		secdbg_base_set_shutdown_device(__func__, dev_name(dev));
 		/*
 		 * hold reference count of device's parent to
 		 * prevent it from being freed because parent's
@@ -3167,16 +3188,28 @@ void device_shutdown(void)
 		if (dev->class && dev->class->shutdown_pre) {
 			if (initcall_debug)
 				dev_info(dev, "shutdown_pre\n");
+
+			before = local_clock();
 			dev->class->shutdown_pre(dev);
+			after = local_clock();
+			secdbg_base_set_device_shutdown_timeinfo(before, after, after - before, (u64)get_cls_shutdown_func(dev));
 		}
 		if (dev->bus && dev->bus->shutdown) {
 			if (initcall_debug)
 				dev_info(dev, "shutdown\n");
+
+			before = local_clock();
 			dev->bus->shutdown(dev);
+			after = local_clock();
+			secdbg_base_set_device_shutdown_timeinfo(before, after, after - before, (u64)get_bus_shutdown_func(dev));
 		} else if (dev->driver && dev->driver->shutdown) {
 			if (initcall_debug)
 				dev_info(dev, "shutdown\n");
+
+			before = local_clock();
 			dev->driver->shutdown(dev);
+			after = local_clock();
+			secdbg_base_set_device_shutdown_timeinfo(before, after, after - before, (u64)get_drv_shutdown_func(dev));
 		}
 
 		device_unlock(dev);
@@ -3188,6 +3221,8 @@ void device_shutdown(void)
 
 		spin_lock(&devices_kset->list_lock);
 	}
+	secdbg_base_set_shutdown_device(NULL, NULL);
+	secdbg_base_set_task_in_dev_shutdown(0);
 	spin_unlock(&devices_kset->list_lock);
 }
 
@@ -3280,9 +3315,36 @@ int dev_printk_emit(int level, const struct device *dev, const char *fmt, ...)
 }
 EXPORT_SYMBOL(dev_printk_emit);
 
+static const char *const loglevel_message[] = {
+	"EMERG",
+	"ALERT",
+	"CRIT",
+	"ERROR",
+	"WARN",
+	"NOTICE",
+	"INFO",
+	"DEBUG",
+};
+
+static void __dev_printk_with_socdata(const char *level, const struct device *dev,
+			struct va_format *vaf)
+{
+	dev_printk_emit(level[1] - '0', dev, "[%s][%s][%6s]: %pV",
+			dev->socdata.soc,
+			dev->socdata.ip,
+			loglevel_message[level[1] - '0'],
+			vaf);
+}
+
 static void __dev_printk(const char *level, const struct device *dev,
 			struct va_format *vaf)
 {
+	/* To reduce side-effect to mainline code */
+	if (dev && dev->socdata.magic == DEV_SOCDATA_MAGIC) {
+		__dev_printk_with_socdata(level, dev, vaf);
+		return;
+	}
+
 	if (dev)
 		dev_printk_emit(level[1] - '0', dev, "%s %s: %pV",
 				dev_driver_string(dev), dev_name(dev), vaf);
@@ -3306,6 +3368,29 @@ void dev_printk(const char *level, const struct device *dev,
 	va_end(args);
 }
 EXPORT_SYMBOL(dev_printk);
+
+#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
+void dev_printk_auto(const char *level, const struct device *dev,
+		const char *fmt, ...)
+{
+	char lvstr[3];
+	struct va_format vaf;
+	va_list args;
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
+
+	/* trick for auto comment level */
+	lvstr[0] = level[0];
+	lvstr[1] = level[1] - 'A' + 90 + '0';
+	lvstr[2] = '\0';
+	__dev_printk(lvstr, dev, &vaf);
+
+	va_end(args);
+}
+#endif
 
 #define define_dev_printk_level(func, kern_level)		\
 void func(const struct device *dev, const char *fmt, ...)	\
@@ -3349,10 +3434,9 @@ static inline bool fwnode_is_primary(struct fwnode_handle *fwnode)
  */
 void set_primary_fwnode(struct device *dev, struct fwnode_handle *fwnode)
 {
-	struct device *parent = dev->parent;
-	struct fwnode_handle *fn = dev->fwnode;
-
 	if (fwnode) {
+		struct fwnode_handle *fn = dev->fwnode;
+
 		if (fwnode_is_primary(fn))
 			fn = fn->secondary;
 
@@ -3362,13 +3446,8 @@ void set_primary_fwnode(struct device *dev, struct fwnode_handle *fwnode)
 		}
 		dev->fwnode = fwnode;
 	} else {
-		if (fwnode_is_primary(fn)) {
-			dev->fwnode = fn->secondary;
-			if (!(parent && fn == parent->fwnode))
-				fn->secondary = NULL;
-		} else {
-			dev->fwnode = NULL;
-		}
+		dev->fwnode = fwnode_is_primary(dev->fwnode) ?
+			dev->fwnode->secondary : NULL;
 	}
 }
 EXPORT_SYMBOL_GPL(set_primary_fwnode);

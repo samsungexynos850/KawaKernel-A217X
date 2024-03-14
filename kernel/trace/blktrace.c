@@ -521,33 +521,13 @@ static int do_blk_trace_setup(struct request_queue *q, char *name, dev_t dev,
 	if (!bt->msg_data)
 		goto err;
 
-#ifdef CONFIG_BLK_DEBUG_FS
-	/*
-	 * When tracing whole make_request drivers (multiqueue) block devices,
-	 * reuse the existing debugfs directory created by the block layer on
-	 * init. For request-based block devices, all partitions block devices,
-	 * and scsi-generic block devices we create a temporary new debugfs
-	 * directory that will be removed once the trace ends.
-	 */
-	if (q->mq_ops && bdev && bdev == bdev->bd_contains)
-		dir = q->debugfs_dir;
-	else
-#endif
+	ret = -ENOENT;
+
+	dir = debugfs_lookup(buts->name, blk_debugfs_root);
+	if (!dir)
 		bt->dir = dir = debugfs_create_dir(buts->name, blk_debugfs_root);
 	if (!dir)
 		goto err;
-
-	/*
-	 * As blktrace relies on debugfs for its interface the debugfs directory
-	 * is required, contrary to the usual mantra of not checking for debugfs
-	 * files or directories.
-	 */
-	if (IS_ERR_OR_NULL(dir)) {
-		pr_warn("debugfs_dir not present for %s so skipping\n",
-			buts->name);
-		ret = -ENOENT;
-		goto err;
-	}
 
 	bt->dev = dev;
 	atomic_set(&bt->dropped, 0);
@@ -591,6 +571,8 @@ static int do_blk_trace_setup(struct request_queue *q, char *name, dev_t dev,
 
 	ret = 0;
 err:
+	if (dir && !bt->dir)
+		dput(dir);
 	if (ret)
 		blk_trace_free(bt);
 	return ret;
@@ -1594,8 +1576,7 @@ blk_trace_event_print_binary(struct trace_iterator *iter, int flags,
 
 static enum print_line_t blk_tracer_print_line(struct trace_iterator *iter)
 {
-	if ((iter->ent->type != TRACE_BLK) ||
-	    !(blk_tracer_flags.val & TRACE_BLK_OPT_CLASSIC))
+	if (!(blk_tracer_flags.val & TRACE_BLK_OPT_CLASSIC))
 		return TRACE_TYPE_UNHANDLED;
 
 	return print_one_line(iter, true);
@@ -1661,14 +1642,6 @@ static int blk_trace_remove_queue(struct request_queue *q)
 	bt = xchg(&q->blk_trace, NULL);
 	if (bt == NULL)
 		return -EINVAL;
-
-	if (bt->trace_state == Blktrace_running) {
-		bt->trace_state = Blktrace_stopped;
-		spin_lock_irq(&running_trace_lock);
-		list_del_init(&bt->running_list);
-		spin_unlock_irq(&running_trace_lock);
-		relay_flush(bt->rchan);
-	}
 
 	put_probe_ref();
 	synchronize_rcu();

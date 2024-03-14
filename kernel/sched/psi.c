@@ -168,6 +168,9 @@ __setup("psi=", setup_psi);
 #define WINDOW_MAX_US 10000000	/* Max window size is 10s */
 #define UPDATES_PER_WINDOW 10	/* 10 updates per window */
 
+static int lmkd_count;
+static int lmkd_cricount;
+
 /* Sampling frequency in nanoseconds */
 static u64 psi_period __read_mostly;
 
@@ -1004,6 +1007,68 @@ static int psi_cpu_open(struct inode *inode, struct file *file)
 	return single_open(file, psi_cpu_show, NULL);
 }
 
+static ssize_t psi_lmkd_count_read(struct file *file, char __user *buf,
+			    size_t count, loff_t *ppos)
+{
+	size_t len;
+	char buffer[32];
+	len = snprintf(buffer, sizeof(buffer), "%d\n", lmkd_count);
+
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t psi_lmkd_cricount_read(struct file *file, char __user *buf,
+			    size_t count, loff_t *ppos)
+{
+	size_t len;
+	char buffer[32];
+	len = snprintf(buffer, sizeof(buffer), "%d\n", lmkd_cricount);
+
+	return simple_read_from_buffer(buf, count, ppos, buffer, len);
+}
+
+static ssize_t psi_lmkd_count_write(struct file *file, const char __user *user_buf,
+			    size_t count, loff_t *ppos)
+{
+	char buffer[32];
+	int err;
+	memset(buffer, 0, sizeof(buffer));
+
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, user_buf, count)) {
+		err = -EFAULT;
+		return err;
+	}
+
+	err = kstrtoint(strstrip(buffer), 0, &lmkd_count);
+	if(err)
+		return err;
+
+	return count;
+}
+
+static ssize_t psi_lmkd_cricount_write(struct file *file, const char __user *user_buf,
+			    size_t count, loff_t *ppos)
+{
+	char buffer[32];
+	int err;
+	memset(buffer, 0, sizeof(buffer));
+
+	if (count > sizeof(buffer) - 1)
+		count = sizeof(buffer) - 1;
+	if (copy_from_user(buffer, user_buf, count)) {
+		err = -EFAULT;
+		return err;
+	}
+
+	err = kstrtoint(strstrip(buffer), 0, &lmkd_cricount);
+	if(err)
+		return err;
+
+	return count;
+}
+
 struct psi_trigger *psi_trigger_create(struct psi_group *group,
 			char *buf, size_t nbytes, enum psi_res res)
 {
@@ -1046,6 +1111,7 @@ struct psi_trigger *psi_trigger_create(struct psi_group *group,
 	t->event = 0;
 	t->last_event_time = 0;
 	init_waitqueue_head(&t->event_wait);
+	kref_init(&t->refcount);
 
 	mutex_lock(&group->trigger_lock);
 
@@ -1078,19 +1144,15 @@ struct psi_trigger *psi_trigger_create(struct psi_group *group,
 	return t;
 }
 
-void psi_trigger_destroy(struct psi_trigger *t)
+static void psi_trigger_destroy(struct kref *ref)
 {
-	struct psi_group *group;
+	struct psi_trigger *t = container_of(ref, struct psi_trigger, refcount);
+	struct psi_group *group = t->group;
 	struct kthread_worker *kworker_to_destroy = NULL;
 
-	/*
-	 * We do not check psi_disabled since it might have been disabled after
-	 * the trigger got created.
-	 */
-	if (!t)
+	if (static_branch_likely(&psi_disabled))
 		return;
 
-	group = t->group;
 	/*
 	 * Wakeup waiters to stop polling. Can happen if cgroup is deleted
 	 * from under a polling process.
@@ -1125,9 +1187,9 @@ void psi_trigger_destroy(struct psi_trigger *t)
 	mutex_unlock(&group->trigger_lock);
 
 	/*
-	 * Wait for psi_schedule_poll_work RCU to complete its read-side
-	 * critical section before destroying the trigger and optionally the
-	 * poll_task.
+	 * Wait for both *trigger_ptr from psi_trigger_replace and
+	 * poll_kworker RCUs to complete their read-side critical sections
+	 * before destroying the trigger and optionally the poll_kworker
 	 */
 	synchronize_rcu();
 	/*
@@ -1141,6 +1203,18 @@ void psi_trigger_destroy(struct psi_trigger *t)
 	kfree(t);
 }
 
+void psi_trigger_replace(void **trigger_ptr, struct psi_trigger *new)
+{
+	struct psi_trigger *old = *trigger_ptr;
+
+	if (static_branch_likely(&psi_disabled))
+		return;
+
+	rcu_assign_pointer(*trigger_ptr, new);
+	if (old)
+		kref_put(&old->refcount, psi_trigger_destroy);
+}
+
 __poll_t psi_trigger_poll(void **trigger_ptr,
 				struct file *file, poll_table *wait)
 {
@@ -1150,14 +1224,23 @@ __poll_t psi_trigger_poll(void **trigger_ptr,
 	if (static_branch_likely(&psi_disabled))
 		return DEFAULT_POLLMASK | EPOLLERR | EPOLLPRI;
 
-	t = smp_load_acquire(trigger_ptr);
-	if (!t)
+	rcu_read_lock();
+
+	t = rcu_dereference(*(void __rcu __force **)trigger_ptr);
+	if (!t) {
+		rcu_read_unlock();
 		return DEFAULT_POLLMASK | EPOLLERR | EPOLLPRI;
+	}
+	kref_get(&t->refcount);
+
+	rcu_read_unlock();
 
 	poll_wait(file, &t->event_wait, wait);
 
 	if (cmpxchg(&t->event, 1, 0) == 1)
 		ret |= EPOLLPRI;
+
+	kref_put(&t->refcount, psi_trigger_destroy);
 
 	return ret;
 }
@@ -1182,24 +1265,14 @@ static ssize_t psi_write(struct file *file, const char __user *user_buf,
 
 	buf[buf_size - 1] = '\0';
 
-	seq = file->private_data;
+	new = psi_trigger_create(&psi_system, buf, nbytes, res);
+	if (IS_ERR(new))
+		return PTR_ERR(new);
 
+	seq = file->private_data;
 	/* Take seq->lock to protect seq->private from concurrent writes */
 	mutex_lock(&seq->lock);
-
-	/* Allow only one trigger per file descriptor */
-	if (seq->private) {
-		mutex_unlock(&seq->lock);
-		return -EBUSY;
-	}
-
-	new = psi_trigger_create(&psi_system, buf, nbytes, res);
-	if (IS_ERR(new)) {
-		mutex_unlock(&seq->lock);
-		return PTR_ERR(new);
-	}
-
-	smp_store_release(&seq->private, new);
+	psi_trigger_replace(&seq->private, new);
 	mutex_unlock(&seq->lock);
 
 	return nbytes;
@@ -1234,7 +1307,7 @@ static int psi_fop_release(struct inode *inode, struct file *file)
 {
 	struct seq_file *seq = file->private_data;
 
-	psi_trigger_destroy(seq->private);
+	psi_trigger_replace(&seq->private, NULL);
 	return single_release(inode, file);
 }
 
@@ -1265,12 +1338,26 @@ static const struct file_operations psi_cpu_fops = {
 	.release        = psi_fop_release,
 };
 
+static const struct file_operations psi_lmkd_count_fops = {
+	.read           = psi_lmkd_count_read,
+	.write          = psi_lmkd_count_write,
+	.llseek         = default_llseek,
+};
+
+static const struct file_operations psi_lmkd_cricount_fops = {
+	.read           = psi_lmkd_cricount_read,
+	.write          = psi_lmkd_cricount_write,
+	.llseek         = default_llseek,
+};
+
 static int __init psi_proc_init(void)
 {
 	proc_mkdir("pressure", NULL);
 	proc_create("pressure/io", 0, NULL, &psi_io_fops);
 	proc_create("pressure/memory", 0, NULL, &psi_memory_fops);
 	proc_create("pressure/cpu", 0, NULL, &psi_cpu_fops);
+	proc_create("pressure/lmkd_count", 0644, NULL, &psi_lmkd_count_fops);
+	proc_create("pressure/lmkd_cricount", 0644, NULL, &psi_lmkd_cricount_fops);
 	return 0;
 }
 module_init(psi_proc_init);

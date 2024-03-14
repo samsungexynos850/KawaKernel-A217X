@@ -26,12 +26,15 @@
 #include <linux/bootmem.h>
 #include <linux/task_work.h>
 #include <linux/sched/task.h>
+#include <linux/fslog.h>
 
 #include "pnode.h"
 #include "internal.h"
 
 /* Maximum number of mounts in a mount namespace */
 unsigned int sysctl_mount_max __read_mostly = 100000;
+
+static unsigned int sys_umount_trace_status;
 
 static unsigned int m_hash_mask __read_mostly;
 static unsigned int m_hash_shift __read_mostly;
@@ -87,6 +90,62 @@ static inline struct hlist_head *m_hash(struct vfsmount *mnt, struct dentry *den
 	tmp += ((unsigned long)dentry / L1_CACHE_BYTES);
 	tmp = tmp + (tmp >> m_hash_shift);
 	return &mount_hashtable[tmp & m_hash_mask];
+}
+
+enum {
+	UMOUNT_STATUS_ADD_TASK = 0,
+	UMOUNT_STATUS_REMAIN_NS,
+	UMOUNT_STATUS_REMAIN_MNT_COUNT,
+	UMOUNT_STATUS_ADD_DELAYED_WORK,
+	UMOUNT_STATUS_MAX
+};
+
+static const char *umount_exit_str[UMOUNT_STATUS_MAX] = {
+	"ADDED_TASK", "REMAIN_NS", "REMAIN_CNT", "DELAY_TASK"
+};
+
+static const char *exception_process[] = {
+	"main", "ch_zygote", "usap32", "usap64", NULL,
+};
+
+static inline void sys_umount_trace_set_status(unsigned int status)
+{
+	sys_umount_trace_status = status;
+}
+
+static inline int is_exception(char *comm)
+{
+	unsigned int idx = 0;
+
+	do {
+		if (!strcmp(comm, exception_process[idx]))
+			return 1;
+	} while (exception_process[++idx]);
+
+	return 0;
+}
+
+static inline void sys_umount_trace_print(struct mount *mnt, int flags)
+{
+#ifdef CONFIG_RKP_NS_PROT
+	struct super_block *sb = mnt->mnt->mnt_sb;
+	int mnt_flags = mnt->mnt->mnt_flags;
+#else
+	struct super_block *sb = mnt->mnt.mnt_sb;
+	int mnt_flags = mnt->mnt.mnt_flags;
+#endif
+	/* We don`t want to see what zygote`s umount */
+	if (((sb->s_magic == SDFAT_SUPER_MAGIC) ||
+		(sb->s_magic == MSDOS_SUPER_MAGIC)) &&
+		((current_uid().val == 0) && !is_exception(current->comm))) {
+		struct block_device *bdev = sb->s_bdev;
+		dev_t bd_dev = bdev ? bdev->bd_dev : 0;
+
+		ST_LOG("[SYS](%s[%d:%d]): "
+			"umount(mf:0x%x, f:0x%x, %s)\n",
+			sb->s_id, MAJOR(bd_dev), MINOR(bd_dev), mnt_flags,
+			flags, umount_exit_str[sys_umount_trace_status]);
+	}
 }
 
 static inline struct hlist_head *mp_hash(struct dentry *dentry)
@@ -1149,6 +1208,7 @@ static void mntput_no_expire(struct mount *mnt)
 		 */
 		mnt_add_count(mnt, -1);
 		rcu_read_unlock();
+		sys_umount_trace_set_status(UMOUNT_STATUS_REMAIN_NS);
 		return;
 	}
 	lock_mount_hash();
@@ -1161,6 +1221,7 @@ static void mntput_no_expire(struct mount *mnt)
 	if (mnt_get_count(mnt)) {
 		rcu_read_unlock();
 		unlock_mount_hash();
+		sys_umount_trace_set_status(UMOUNT_STATUS_REMAIN_MNT_COUNT);
 		return;
 	}
 	if (unlikely(mnt->mnt.mnt_flags & MNT_DOOMED)) {
@@ -1185,11 +1246,15 @@ static void mntput_no_expire(struct mount *mnt)
 		struct task_struct *task = current;
 		if (likely(!(task->flags & PF_KTHREAD))) {
 			init_task_work(&mnt->mnt_rcu, __cleanup_mnt);
-			if (!task_work_add(task, &mnt->mnt_rcu, true))
+			if (!task_work_add(task, &mnt->mnt_rcu, true)) {
+				sys_umount_trace_set_status(UMOUNT_STATUS_ADD_TASK);
 				return;
+			}
 		}
-		if (llist_add(&mnt->mnt_llist, &delayed_mntput_list))
+		if (llist_add(&mnt->mnt_llist, &delayed_mntput_list)) {
 			schedule_delayed_work(&delayed_mntput_work, 1);
+			sys_umount_trace_set_status(UMOUNT_STATUS_ADD_DELAYED_WORK);
+		}
 		return;
 	}
 	cleanup_mnt(mnt);
@@ -1628,22 +1693,13 @@ static inline bool may_mount(void)
 	return ns_capable(current->nsproxy->mnt_ns->user_ns, CAP_SYS_ADMIN);
 }
 
-#ifdef	CONFIG_MANDATORY_FILE_LOCKING
-static bool may_mandlock(void)
-{
-	pr_warn_once("======================================================\n"
-		     "WARNING: the mand mount option is being deprecated and\n"
-		     "         will be removed in v5.15!\n"
-		     "======================================================\n");
-	return capable(CAP_SYS_ADMIN);
-}
-#else
 static inline bool may_mandlock(void)
 {
-	pr_warn("VFS: \"mand\" mount option not supported");
+#ifndef	CONFIG_MANDATORY_FILE_LOCKING
 	return false;
-}
 #endif
+	return capable(CAP_SYS_ADMIN);
+}
 
 /*
  * Now umount can handle mount points as well as block devices.
@@ -1652,6 +1708,10 @@ static inline bool may_mandlock(void)
  * We now support a flag for forced unmount like the other 'big iron'
  * unixes. Our API is identical to OSF/1 to avoid making a mess of AMD
  */
+
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+#include <linux/io_record.h>
+#endif
 
 int ksys_umount(char __user *name, int flags)
 {
@@ -1666,6 +1726,9 @@ int ksys_umount(char __user *name, int flags)
 	if (!may_mount())
 		return -EPERM;
 
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	forced_init_record();
+#endif
 	if (!(flags & UMOUNT_NOFOLLOW))
 		lookup_flags |= LOOKUP_FOLLOW;
 
@@ -1689,6 +1752,8 @@ dput_and_out:
 	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
 	dput(path.dentry);
 	mntput_no_expire(mnt);
+	if (!retval)
+		sys_umount_trace_print(mnt, flags);
 out:
 	return retval;
 }
@@ -1826,20 +1891,6 @@ void drop_collected_mounts(struct vfsmount *mnt)
 	namespace_unlock();
 }
 
-static bool has_locked_children(struct mount *mnt, struct dentry *dentry)
-{
-	struct mount *child;
-
-	list_for_each_entry(child, &mnt->mnt_mounts, mnt_child) {
-		if (!is_subdir(child->mnt_mountpoint, dentry))
-			continue;
-
-		if (child->mnt.mnt_flags & MNT_LOCKED)
-			return true;
-	}
-	return false;
-}
-
 /**
  * clone_private_mount - create a private clone of a path
  *
@@ -1854,27 +1905,14 @@ struct vfsmount *clone_private_mount(const struct path *path)
 	struct mount *old_mnt = real_mount(path->mnt);
 	struct mount *new_mnt;
 
-	down_read(&namespace_sem);
 	if (IS_MNT_UNBINDABLE(old_mnt))
-		goto invalid;
-
-	if (!check_mnt(old_mnt))
-		goto invalid;
-
-	if (has_locked_children(old_mnt, path->dentry))
-		goto invalid;
+		return ERR_PTR(-EINVAL);
 
 	new_mnt = clone_mnt(old_mnt, path->dentry, CL_PRIVATE);
-	up_read(&namespace_sem);
-
 	if (IS_ERR(new_mnt))
 		return ERR_CAST(new_mnt);
 
 	return &new_mnt->mnt;
-
-invalid:
-	up_read(&namespace_sem);
-	return ERR_PTR(-EINVAL);
 }
 EXPORT_SYMBOL_GPL(clone_private_mount);
 
@@ -2188,6 +2226,19 @@ static int do_change_type(struct path *path, int ms_flags)
  out_unlock:
 	namespace_unlock();
 	return err;
+}
+
+static bool has_locked_children(struct mount *mnt, struct dentry *dentry)
+{
+	struct mount *child;
+	list_for_each_entry(child, &mnt->mnt_mounts, mnt_child) {
+		if (!is_subdir(child->mnt_mountpoint, dentry))
+			continue;
+
+		if (child->mnt.mnt_flags & MNT_LOCKED)
+			return true;
+	}
+	return false;
 }
 
 /*
@@ -2514,12 +2565,9 @@ static int do_new_mount(struct path *path, const char *fstype, int sb_flags,
 		return -ENODEV;
 
 	mnt = vfs_kern_mount(type, sb_flags, name, data);
-	if (!IS_ERR(mnt) && (type->fs_flags & FS_HAS_SUBTYPE)) {
-		down_write(&mnt->mnt_sb->s_umount);
-		if (!mnt->mnt_sb->s_subtype)
-			mnt = fs_set_subtype(mnt, fstype);
-		up_write(&mnt->mnt_sb->s_umount);
-	}
+	if (!IS_ERR(mnt) && (type->fs_flags & FS_HAS_SUBTYPE) &&
+	    !mnt->mnt_sb->s_subtype)
+		mnt = fs_set_subtype(mnt, fstype);
 
 	put_filesystem(type);
 	if (IS_ERR(mnt))

@@ -66,6 +66,7 @@ struct uart_ops {
 	void		(*set_ldisc)(struct uart_port *, struct ktermios *);
 	void		(*pm)(struct uart_port *, unsigned int state,
 			      unsigned int oldstate);
+	void		(*wake_peer)(struct uart_port *);
 
 	/*
 	 * Return a string describing the type of the port
@@ -305,23 +306,6 @@ struct uart_state {
 
 /* number of characters left in xmit buffer before we ask for more */
 #define WAKEUP_CHARS		256
-
-/**
- * uart_xmit_advance - Advance xmit buffer and account Tx'ed chars
- * @up: uart_port structure describing the port
- * @chars: number of characters sent
- *
- * This function advances the tail of circular xmit buffer by the number of
- * @chars transmitted and handles accounting of transmitted bytes (into
- * @up's icount.tx).
- */
-static inline void uart_xmit_advance(struct uart_port *up, unsigned int chars)
-{
-	struct circ_buf *xmit = &up->state->xmit;
-
-	xmit->tail = (xmit->tail + chars) & (UART_XMIT_SIZE - 1);
-	up->icount.tx += chars;
-}
 
 struct module;
 struct tty_driver;

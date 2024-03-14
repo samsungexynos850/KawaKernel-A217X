@@ -10,6 +10,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/blkdev.h>
+#include <linux/backing-dev.h>
 #include <linux/freezer.h>
 #include <linux/kthread.h>
 #include <linux/scatterlist.h>
@@ -185,7 +186,7 @@ static void mmc_queue_setup_discard(struct request_queue *q,
 	q->limits.discard_granularity = card->pref_erase << 9;
 	/* granularity must not be greater than max. discard */
 	if (card->pref_erase > max_discard)
-		q->limits.discard_granularity = SECTOR_SIZE;
+		q->limits.discard_granularity = 0;
 	if (mmc_can_secure_erase_trim(card))
 		blk_queue_flag_set(QUEUE_FLAG_SECERASE, q);
 }
@@ -201,7 +202,12 @@ static int __mmc_init_request(struct mmc_queue *mq, struct request *req,
 {
 	struct mmc_queue_req *mq_rq = req_to_mmc_queue_req(req);
 	struct mmc_card *card = mq->card;
-	struct mmc_host *host = card->host;
+	struct mmc_host *host;
+
+	if (!mq || !card || (mmc_card_removed(card)))
+		return -ENOTBLK;
+
+	host = card->host;
 
 	mq_rq->sg = mmc_alloc_sg(host->max_segs, gfp);
 	if (!mq_rq->sg)
@@ -268,6 +274,10 @@ static blk_status_t mmc_mq_queue_rq(struct blk_mq_hw_ctx *hctx,
 		}
 		break;
 	case MMC_ISSUE_ASYNC:
+		if (mmc_cqe_dcmd_busy(mq)) {
+			spin_unlock_irq(q->queue_lock);
+			return BLK_STS_RESOURCE;
+		}
 		break;
 	default:
 		/*
@@ -364,10 +374,8 @@ static void mmc_setup_queue(struct mmc_queue *mq, struct mmc_card *card)
 		min(host->max_blk_count, host->max_req_size / 512));
 	blk_queue_max_segments(mq->queue, host->max_segs);
 
-	if (mmc_card_mmc(card) && card->ext_csd.data_sector_size) {
+	if (mmc_card_mmc(card))
 		block_size = card->ext_csd.data_sector_size;
-		WARN_ON(block_size != 512 && block_size != 4096);
-	}
 
 	blk_queue_logical_block_size(mq->queue, block_size);
 	blk_queue_max_segment_size(mq->queue,
@@ -375,6 +383,28 @@ static void mmc_setup_queue(struct mmc_queue *mq, struct mmc_card *card)
 
 	INIT_WORK(&mq->recovery_work, mmc_mq_recovery_handler);
 	INIT_WORK(&mq->complete_work, mmc_blk_mq_complete_work);
+
+	if (mmc_card_sd(card)) {
+		/* decrease max # of requests to 32. The goal of this tuning is
+		 * reducing the time for draining elevator when elevator_switch
+		 * function is called. It is effective for slow external sdcard.
+		 */
+		mq->queue->nr_requests = BLKDEV_MAX_RQ / 8;
+		if (mq->queue->nr_requests < 32)
+			mq->queue->nr_requests = 32;
+#ifdef CONFIG_LARGE_DIRTY_BUFFER
+		/* apply more throttle on external sdcard */
+		mq->queue->backing_dev_info->capabilities |= BDI_CAP_STRICTLIMIT;
+		bdi_set_min_ratio(mq->queue->backing_dev_info, 30);
+		bdi_set_max_ratio(mq->queue->backing_dev_info, 60);
+#endif
+		pr_info("Parameters for external-sdcard: min/max_ratio: %u/%u "
+			"strictlimit: on nr_requests: %lu read_ahead_kb: %lu\n",
+			mq->queue->backing_dev_info->min_ratio,
+			mq->queue->backing_dev_info->max_ratio,
+			mq->queue->nr_requests,
+				mq->queue->backing_dev_info->ra_pages * 4);
+	}
 
 	mutex_init(&mq->complete_lock);
 
@@ -440,7 +470,7 @@ static int mmc_mq_init(struct mmc_queue *mq, struct mmc_card *card,
 	if (ret)
 		return ret;
 
-	blk_queue_rq_timeout(mq->queue, 60 * HZ);
+	blk_queue_rq_timeout(mq->queue, 20 * HZ);
 
 	mmc_setup_queue(mq, card);
 
@@ -488,6 +518,12 @@ void mmc_queue_resume(struct mmc_queue *mq)
 void mmc_cleanup_queue(struct mmc_queue *mq)
 {
 	struct request_queue *q = mq->queue;
+
+#ifdef CONFIG_LARGE_DIRTY_BUFFER
+	/* Restore bdi min/max ratio before device removal */
+	bdi_set_min_ratio(q->backing_dev_info, 0);
+	bdi_set_max_ratio(q->backing_dev_info, 100);
+#endif
 
 	/*
 	 * The legacy code handled the possibility of being suspended,

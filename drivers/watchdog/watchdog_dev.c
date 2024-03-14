@@ -485,7 +485,26 @@ static ssize_t timeout_show(struct device *dev, struct device_attribute *attr,
 
 	return sprintf(buf, "%u\n", wdd->timeout);
 }
-static DEVICE_ATTR_RO(timeout);
+
+static ssize_t timeout_store(struct device *dev, struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct watchdog_device *wdd = dev_get_drvdata(dev);
+	unsigned int timeout;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &timeout);
+	if (ret)
+		return ret;
+
+	if (wdd->max_timeout && wdd->max_timeout < timeout)
+		return ret;
+
+	ret = watchdog_set_timeout(wdd, timeout);
+
+	return ret;
+}
+static DEVICE_ATTR_RW(timeout);
 
 static ssize_t pretimeout_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
@@ -547,6 +566,23 @@ static ssize_t pretimeout_governor_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(pretimeout_governor);
 
+static ssize_t reset_confirm_show(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
+{
+	struct watchdog_device *wdd = dev_get_drvdata(dev);
+	int ret = watchdog_start(wdd);
+
+	if (ret)
+		return ret;
+
+	if (wdd->ops->reset_confirm)
+		wdd->ops->reset_confirm(wdd);
+
+	return sprintf(buf, "watchdog reset failed..\n");
+}
+static DEVICE_ATTR_RO(reset_confirm);
+
 static umode_t wdt_is_visible(struct kobject *kobj, struct attribute *attr,
 				int n)
 {
@@ -578,6 +614,7 @@ static struct attribute *wdt_attrs[] = {
 	&dev_attr_nowayout.attr,
 	&dev_attr_pretimeout_governor.attr,
 	&dev_attr_pretimeout_available_governors.attr,
+	&dev_attr_reset_confirm.attr,
 	NULL,
 };
 
@@ -944,19 +981,8 @@ static int watchdog_cdev_register(struct watchdog_device *wdd)
 	wd_data->wdd = wdd;
 	wdd->wd_data = wd_data;
 
-	if (IS_ERR_OR_NULL(watchdog_kworker)) {
-		kfree(wd_data);
+	if (IS_ERR_OR_NULL(watchdog_kworker))
 		return -ENODEV;
-	}
-
-	device_initialize(&wd_data->dev);
-	wd_data->dev.devt = MKDEV(MAJOR(watchdog_devt), wdd->id);
-	wd_data->dev.class = &watchdog_class;
-	wd_data->dev.parent = wdd->parent;
-	wd_data->dev.groups = wdd->groups;
-	wd_data->dev.release = watchdog_core_data_release;
-	dev_set_drvdata(&wd_data->dev, wdd);
-	dev_set_name(&wd_data->dev, "watchdog%d", wdd->id);
 
 	kthread_init_work(&wd_data->work, watchdog_ping_work);
 	hrtimer_init(&wd_data->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
@@ -973,10 +999,19 @@ static int watchdog_cdev_register(struct watchdog_device *wdd)
 				pr_err("%s: a legacy watchdog module is probably present.\n",
 					wdd->info->identity);
 			old_wd_data = NULL;
-			put_device(&wd_data->dev);
+			kfree(wd_data);
 			return err;
 		}
 	}
+
+	device_initialize(&wd_data->dev);
+	wd_data->dev.devt = MKDEV(MAJOR(watchdog_devt), wdd->id);
+	wd_data->dev.class = &watchdog_class;
+	wd_data->dev.parent = wdd->parent;
+	wd_data->dev.groups = wdd->groups;
+	wd_data->dev.release = watchdog_core_data_release;
+	dev_set_drvdata(&wd_data->dev, wdd);
+	dev_set_name(&wd_data->dev, "watchdog%d", wdd->id);
 
 	/* Fill in the data structures */
 	cdev_init(&wd_data->cdev, &watchdog_fops);

@@ -29,8 +29,9 @@
 #include <linux/bug.h>
 #include <linux/ratelimit.h>
 #include <linux/debugfs.h>
-#include <linux/sysfs.h>
 #include <asm/sections.h>
+#include <linux/debug-snapshot.h>
+#include <linux/sec_perf.h>
 
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
@@ -38,12 +39,16 @@
 int panic_on_oops = CONFIG_PANIC_ON_OOPS_VALUE;
 static unsigned long tainted_mask =
 	IS_ENABLED(CONFIG_GCC_PLUGIN_RANDSTRUCT) ? (1 << TAINT_RANDSTRUCT) : 0;
+
+bool in_panic;
 static int pause_on_oops;
 static int pause_on_oops_flag;
 static DEFINE_SPINLOCK(pause_on_oops_lock);
 bool crash_kexec_post_notifiers;
 int panic_on_warn __read_mostly;
-static unsigned int warn_limit __read_mostly;
+#ifdef CONFIG_MUIC_S2MU106
+void s2mu106_muic_set_auto(void);
+#endif
 
 int panic_timeout = CONFIG_PANIC_TIMEOUT;
 EXPORT_SYMBOL_GPL(panic_timeout);
@@ -51,45 +56,6 @@ EXPORT_SYMBOL_GPL(panic_timeout);
 ATOMIC_NOTIFIER_HEAD(panic_notifier_list);
 
 EXPORT_SYMBOL(panic_notifier_list);
-
-#ifdef CONFIG_SYSCTL
-static struct ctl_table kern_panic_table[] = {
-	{
-		.procname       = "warn_limit",
-		.data           = &warn_limit,
-		.maxlen         = sizeof(warn_limit),
-		.mode           = 0644,
-		.proc_handler   = proc_douintvec,
-	},
-	{ }
-};
-
-static __init int kernel_panic_sysctls_init(void)
-{
-	register_sysctl_init("kernel", kern_panic_table);
-	return 0;
-}
-late_initcall(kernel_panic_sysctls_init);
-#endif
-
-static atomic_t warn_count = ATOMIC_INIT(0);
-
-#ifdef CONFIG_SYSFS
-static ssize_t warn_count_show(struct kobject *kobj, struct kobj_attribute *attr,
-			       char *page)
-{
-	return sysfs_emit(page, "%d\n", atomic_read(&warn_count));
-}
-
-static struct kobj_attribute warn_count_attr = __ATTR_RO(warn_count);
-
-static __init int kernel_panic_sysfs_init(void)
-{
-	sysfs_add_file_to_group(kernel_kobj, &warn_count_attr.attr, NULL);
-	return 0;
-}
-late_initcall(kernel_panic_sysfs_init);
-#endif
 
 static long no_blink(int state)
 {
@@ -166,18 +132,10 @@ void nmi_panic(struct pt_regs *regs, const char *msg)
 }
 EXPORT_SYMBOL(nmi_panic);
 
-void check_panic_on_warn(const char *origin)
-{
-	unsigned int limit;
-
-	if (panic_on_warn)
-		panic("%s: panic_on_warn set ...\n", origin);
-
-	limit = READ_ONCE(warn_limit);
-	if (atomic_inc_return(&warn_count) >= limit && limit)
-		panic("%s: system warned too often (kernel.warn_limit is %d)",
-		      origin, limit);
-}
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
+unsigned long sec_delay_check __read_mostly = 1;
+EXPORT_SYMBOL(sec_delay_check);
+#endif
 
 /**
  *	panic - halt the system
@@ -196,15 +154,15 @@ void panic(const char *fmt, ...)
 	int old_cpu, this_cpu;
 	bool _crash_kexec_post_notifiers = crash_kexec_post_notifiers;
 
-	if (panic_on_warn) {
-		/*
-		 * This thread may hit another WARN() in the panic path.
-		 * Resetting this prevents additional WARN() from panicking the
-		 * system on this thread.  Other threads are blocked by the
-		 * panic_mutex in panic().
-		 */
-		panic_on_warn = 0;
-	}
+	/*
+	 * dbg_snapshot_early_panic is for supporting wapper functions
+	 * to users need to run SoC specific function in NOT interrupt
+	 * context
+	 */
+	dbg_snapshot_early_panic();
+#ifdef CONFIG_SEC_PERF_LATENCYCHECKER
+	sec_perf_latencychecker_stop();
+#endif
 
 	/*
 	 * Disable local interrupts. This will prevent panic_smp_self_stop
@@ -213,8 +171,12 @@ void panic(const char *fmt, ...)
 	 * after setting panic_cpu) from invoking panic() again.
 	 */
 	local_irq_disable();
+	in_panic = true;
 	preempt_disable_notrace();
 
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
+	sec_delay_check = 0;
+#endif
 	/*
 	 * It's possible to come here directly from a panic-assertion and
 	 * not have preempt disabled. Some functions called from here want
@@ -233,15 +195,28 @@ void panic(const char *fmt, ...)
 	this_cpu = raw_smp_processor_id();
 	old_cpu  = atomic_cmpxchg(&panic_cpu, PANIC_CPU_INVALID, this_cpu);
 
-	if (old_cpu != PANIC_CPU_INVALID && old_cpu != this_cpu)
+	if (old_cpu != PANIC_CPU_INVALID) {
+		dbg_snapshot_hook_hardlockup_exit();
 		panic_smp_self_stop();
+	}
 
 	console_verbose();
 	bust_spinlocks(1);
 	va_start(args, fmt);
 	vsnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
-	pr_emerg("Kernel panic - not syncing: %s\n", buf);
+#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
+	if (buf[strlen(buf) - 1] == '\n')
+		buf[strlen(buf) - 1] = '\0';
+#endif
+	pr_auto(ASL5, "Kernel panic - not syncing: %s\n", buf);
+
+#ifdef CONFIG_MUIC_S2MU106
+//	s2mu106_muic_set_auto();
+#endif
+
+	dbg_snapshot_prepare_panic();
+	dbg_snapshot_dump_panic(buf, (size_t)strnlen(buf, sizeof(buf)));
 #ifdef CONFIG_DEBUG_BUGVERBOSE
 	/*
 	 * Avoid nested stack-dumping if a panic occurs during oops processing
@@ -249,6 +224,7 @@ void panic(const char *fmt, ...)
 	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
 		dump_stack();
 #endif
+	//sysrq_sched_debug_show();
 
 	/*
 	 * If we have crashed and we have a crash kernel loaded let it handle
@@ -286,6 +262,8 @@ void panic(const char *fmt, ...)
 	/* Call flush even twice. It tries harder with a single online CPU */
 	printk_safe_flush_on_panic();
 	kmsg_dump(KMSG_DUMP_PANIC);
+
+	dbg_snapshot_post_panic();
 
 	/*
 	 * If you doubt kdump always works fine in any situation,
@@ -331,7 +309,7 @@ void panic(const char *fmt, ...)
 				i += panic_blink(state ^= 1);
 				i_next = i + 3600 / PANIC_BLINK_SPD;
 			}
-			mdelay(PANIC_TIMER_STEP);
+			dev_mdelay(PANIC_TIMER_STEP);
 		}
 	}
 	if (panic_timeout != 0) {
@@ -367,7 +345,7 @@ void panic(const char *fmt, ...)
 			i += panic_blink(state ^= 1);
 			i_next = i + 3600 / PANIC_BLINK_SPD;
 		}
-		mdelay(PANIC_TIMER_STEP);
+		dev_mdelay(PANIC_TIMER_STEP);
 	}
 }
 
@@ -594,16 +572,20 @@ void __warn(const char *file, int line, void *caller, unsigned taint,
 	if (args)
 		vprintk(args->fmt, args->args);
 
-	check_panic_on_warn("kernel");
+	if (panic_on_warn) {
+		/*
+		 * This thread may hit another WARN() in the panic path.
+		 * Resetting this prevents additional WARN() from panicking the
+		 * system on this thread.  Other threads are blocked by the
+		 * panic_mutex in panic().
+		 */
+		panic_on_warn = 0;
+		panic("panic_on_warn set ...\n");
+	}
 
 	print_modules();
 
-	if (regs)
-		show_regs(regs);
-	else
-		dump_stack();
-
-	print_irqtrace_events(current);
+	dump_stack();
 
 	print_oops_end_marker();
 

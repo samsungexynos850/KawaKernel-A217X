@@ -470,6 +470,17 @@ int sprint_backtrace(char *buffer, unsigned long address)
 	return __sprint_symbol(buffer, address, -1, 1);
 }
 
+/* Look up a kernel symbol and print it to the kernel messages. */
+void __print_symbol(const char *fmt, unsigned long address)
+{
+	char buffer[KSYM_SYMBOL_LEN];
+
+	sprint_symbol(buffer, address);
+
+	printk(fmt, buffer);
+}
+EXPORT_SYMBOL(__print_symbol);
+
 /* To avoid using get_symbol_offset for every symbol, we carry prefix along. */
 struct kallsym_iter {
 	loff_t pos;
@@ -683,20 +694,19 @@ static inline int kallsyms_for_perf(void)
  * Otherwise, require CAP_SYSLOG (assuming kptr_restrict isn't set to
  * block even that).
  */
-bool kallsyms_show_value(const struct cred *cred)
+int kallsyms_show_value(void)
 {
 	switch (kptr_restrict) {
 	case 0:
 		if (kallsyms_for_perf())
-			return true;
+			return 1;
 	/* fallthrough */
 	case 1:
-		if (security_capable(cred, &init_user_ns, CAP_SYSLOG,
-				     CAP_OPT_NOAUDIT) == 0)
-			return true;
+		if (has_capability_noaudit(current, CAP_SYSLOG))
+			return 1;
 	/* fallthrough */
 	default:
-		return false;
+		return 0;
 	}
 }
 
@@ -713,11 +723,7 @@ static int kallsyms_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 	reset_iter(iter, 0);
 
-	/*
-	 * Instead of checking this on every s_show() call, cache
-	 * the result here at open time.
-	 */
-	iter->show_value = kallsyms_show_value(file->f_cred);
+	iter->show_value = kallsyms_show_value();
 	return 0;
 }
 

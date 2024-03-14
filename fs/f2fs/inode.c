@@ -422,6 +422,13 @@ static int do_read_inode(struct inode *inode)
 	F2FS_I(inode)->i_disk_time[1] = inode->i_ctime;
 	F2FS_I(inode)->i_disk_time[2] = inode->i_mtime;
 	F2FS_I(inode)->i_disk_time[3] = F2FS_I(inode)->i_crtime;
+
+	if (unlikely((inode->i_mode & S_IFMT) == 0)) {
+		print_block_data(sbi->sb, inode->i_ino, page_address(node_page),
+				0, F2FS_BLKSIZE);
+		f2fs_bug_on(sbi, 1);
+	}
+
 	f2fs_put_page(node_page, 1);
 
 	stat_inc_inline_xattr(inode);
@@ -466,7 +473,7 @@ make_now:
 		inode->i_op = &f2fs_dir_inode_operations;
 		inode->i_fop = &f2fs_dir_operations;
 		inode->i_mapping->a_ops = &f2fs_dblock_aops;
-		mapping_set_gfp_mask(inode->i_mapping, GFP_NOFS);
+		inode_nohighmem(inode);
 	} else if (S_ISLNK(inode->i_mode)) {
 		if (f2fs_encrypted_inode(inode))
 			inode->i_op = &f2fs_encrypted_symlink_inode_operations;

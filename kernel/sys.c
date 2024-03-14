@@ -73,6 +73,10 @@
 #include <asm/io.h>
 #include <asm/unistd.h>
 
+#ifdef CONFIG_SECURITY_DEFEX
+#include <linux/defex.h>
+#endif
+
 #include "uid16.h"
 
 #ifndef SET_UNALIGN_CTL
@@ -811,6 +815,11 @@ long __sys_setfsuid(uid_t uid)
 	if (!new)
 		return old_fsuid;
 
+#ifdef CONFIG_SECURITY_DEFEX
+	if (task_defex_enforce(current, NULL, -__NR_setfsuid))
+		return old_fsuid;
+#endif
+
 	if (uid_eq(kuid, old->uid)  || uid_eq(kuid, old->euid)  ||
 	    uid_eq(kuid, old->suid) || uid_eq(kuid, old->fsuid) ||
 	    ns_capable(old->user_ns, CAP_SETUID)) {
@@ -854,6 +863,11 @@ long __sys_setfsgid(gid_t gid)
 	new = prepare_creds();
 	if (!new)
 		return old_fsgid;
+
+#ifdef CONFIG_SECURITY_DEFEX
+	if (task_defex_enforce(current, NULL, -__NR_setfsgid))
+		return old_fsgid;
+#endif
 
 	if (gid_eq(kgid, old->gid)  || gid_eq(kgid, old->egid)  ||
 	    gid_eq(kgid, old->sgid) || gid_eq(kgid, old->fsgid) ||
@@ -1277,12 +1291,10 @@ SYSCALL_DEFINE1(uname, struct old_utsname __user *, name)
 
 SYSCALL_DEFINE1(olduname, struct oldold_utsname __user *, name)
 {
-	struct oldold_utsname tmp;
+	struct oldold_utsname tmp = {};
 
 	if (!name)
 		return -EFAULT;
-
-	memset(&tmp, 0, sizeof(tmp));
 
 	down_read(&uts_sem);
 	memcpy(&tmp.sysname, &utsname()->sysname, __OLD_UTS_LEN);
@@ -1532,8 +1544,6 @@ int do_prlimit(struct task_struct *tsk, unsigned int resource,
 
 	if (resource >= RLIM_NLIMITS)
 		return -EINVAL;
-	resource = array_index_nospec(resource, RLIM_NLIMITS);
-
 	if (new_rlim) {
 		if (new_rlim->rlim_cur > new_rlim->rlim_max)
 			return -EINVAL;
@@ -1934,6 +1944,13 @@ static int validate_prctl_map(struct prctl_mm_map *prctl_map)
 #undef __prctl_check_order
 
 	error = -EINVAL;
+
+	/*
+	 * @brk should be after @end_data in traditional maps.
+	 */
+	if (prctl_map->start_brk <= prctl_map->end_data ||
+	    prctl_map->brk <= prctl_map->end_data)
+		goto out;
 
 	/*
 	 * Neither we should allow to override limits if they set.

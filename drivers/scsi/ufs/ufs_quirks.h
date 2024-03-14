@@ -21,10 +21,14 @@
 #define UFS_ANY_VENDOR 0xFFFF
 #define UFS_ANY_MODEL  "ANY_MODEL"
 
-#define UFS_VENDOR_MICRON      0x12C
 #define UFS_VENDOR_TOSHIBA     0x198
 #define UFS_VENDOR_SAMSUNG     0x1CE
 #define UFS_VENDOR_SKHYNIX     0x1AD
+
+/*uniqueu number*/
+#define	UFS_UN_16_DIGITS 16
+#define UFS_UN_18_DIGITS 18
+#define UFS_UN_MAX_DIGITS 19 //current max digit + 1
 
 /**
  * ufs_dev_fix - ufs device quirk info
@@ -53,6 +57,7 @@ struct ufs_dev_fix {
  * TX_LCC_ENABLE attribute of host to 0).
  */
 #define UFS_DEVICE_QUIRK_BROKEN_LCC (1 << 0)
+#define UFS_DEVICE_QUIRK_BROKEN_LINEREST	UFS_BIT(1)
 
 /*
  * Some UFS devices don't need VCCQ rail for device operations. Enabling this

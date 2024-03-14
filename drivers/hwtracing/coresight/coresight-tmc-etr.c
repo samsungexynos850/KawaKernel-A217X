@@ -183,8 +183,6 @@ static int tmc_pages_alloc(struct tmc_pages *tmc_pages,
 		} else {
 			page = alloc_pages_node(node,
 						GFP_KERNEL | __GFP_ZERO, 0);
-			if (!page)
-				goto err;
 		}
 		paddr = dma_map_page(dev, page, 0, PAGE_SIZE, dir);
 		if (dma_mapping_error(dev, paddr))
@@ -916,6 +914,8 @@ static void tmc_etr_enable_hw(struct tmc_drvdata *drvdata,
 
 	CS_UNLOCK(drvdata->base);
 
+	if (drvdata->hwacg)
+		writel_relaxed(0x1, drvdata->sfr_base + drvdata->q_offset);
 	/* Wait for TMCSReady bit to be set */
 	tmc_wait_for_tmcready(drvdata);
 
@@ -1030,6 +1030,9 @@ static void tmc_etr_disable_hw(struct tmc_drvdata *drvdata)
 		tmc_etr_sync_sysfs_buf(drvdata);
 
 	tmc_disable_hw(drvdata);
+
+	if (drvdata->hwacg)
+		writel_relaxed(0x0, drvdata->sfr_base + drvdata->q_offset);
 
 	CS_LOCK(drvdata->base);
 

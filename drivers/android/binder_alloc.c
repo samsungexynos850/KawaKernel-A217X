@@ -36,6 +36,8 @@
 
 struct list_lru binder_alloc_lru;
 
+extern int system_server_pid;
+
 static DEFINE_MUTEX(binder_alloc_mmap_lock);
 
 enum {
@@ -221,6 +223,11 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 
 	if (mm) {
 		down_read(&mm->mmap_sem);
+		if (!mmget_still_valid(mm)) {
+			if (allocate == 0)
+				goto free_range;
+			goto err_no_vma;
+		}
 		vma = alloc->vma;
 	}
 
@@ -388,9 +395,11 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 	}
 	if (is_async &&
 	    alloc->free_async_space < size + sizeof(struct binder_buffer)) {
-		binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC,
-			     "%d: binder_alloc_buf size %zd failed, no async space left\n",
-			      alloc->pid, size);
+		//binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC,
+		//	     "%d: binder_alloc_buf size %zd failed, no async space left\n",
+		//	      alloc->pid, size);
+		pr_info("%d: binder_alloc_buf size %zd(%zd) failed, no async space left\n",
+			     alloc->pid, size, alloc->free_async_space);
 		return ERR_PTR(-ENOSPC);
 	}
 
@@ -497,6 +506,14 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 	buffer->extra_buffers_size = extra_buffers_size;
 	if (is_async) {
 		alloc->free_async_space -= size + sizeof(struct binder_buffer);
+		if ((system_server_pid == alloc->pid) && (alloc->free_async_space <= 153600)) { // 150K
+			pr_info("%d: [free_size<150K] binder_alloc_buf size %zd async free %zd\n",
+                                 alloc->pid, size, alloc->free_async_space);
+                }
+		if ((system_server_pid == alloc->pid) && (size >= 122880)) { // 120K
+			pr_info("%d: [alloc_size>120K] binder_alloc_buf size %zd async free %zd\n",
+				alloc->pid, size, alloc->free_async_space);
+		}
 		binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC_ASYNC,
 			     "%d: binder_alloc_buf size %zd async free %zd\n",
 			      alloc->pid, size, alloc->free_async_space);
@@ -621,7 +638,7 @@ static void binder_free_buf_locked(struct binder_alloc *alloc,
 	BUG_ON(buffer->user_data > alloc->buffer + alloc->buffer_size);
 
 	if (buffer->async_transaction) {
-		alloc->free_async_space += buffer_size + sizeof(struct binder_buffer);
+		alloc->free_async_space += size + sizeof(struct binder_buffer);
 
 		binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC_ASYNC,
 			     "%d: binder_free_buf size %zd async free %zd\n",
@@ -953,7 +970,7 @@ enum lru_status binder_alloc_free_page(struct list_head *item,
 		trace_binder_unmap_user_end(alloc, index);
 	}
 	up_read(&mm->mmap_sem);
-	mmput_async(mm);
+	mmput(mm);
 
 	trace_binder_unmap_kernel_start(alloc, index);
 

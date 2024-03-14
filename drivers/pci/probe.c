@@ -348,57 +348,6 @@ static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
 	}
 }
 
-static void pci_read_bridge_windows(struct pci_dev *bridge)
-{
-	u16 io;
-	u32 pmem, tmp;
-
-	pci_read_config_word(bridge, PCI_IO_BASE, &io);
-	if (!io) {
-		pci_write_config_word(bridge, PCI_IO_BASE, 0xe0f0);
-		pci_read_config_word(bridge, PCI_IO_BASE, &io);
-		pci_write_config_word(bridge, PCI_IO_BASE, 0x0);
-	}
-	if (io)
-		bridge->io_window = 1;
-
-	/*
-	 * DECchip 21050 pass 2 errata: the bridge may miss an address
-	 * disconnect boundary by one PCI data phase.  Workaround: do not
-	 * use prefetching on this device.
-	 */
-	if (bridge->vendor == PCI_VENDOR_ID_DEC && bridge->device == 0x0001)
-		return;
-
-	pci_read_config_dword(bridge, PCI_PREF_MEMORY_BASE, &pmem);
-	if (!pmem) {
-		pci_write_config_dword(bridge, PCI_PREF_MEMORY_BASE,
-					       0xffe0fff0);
-		pci_read_config_dword(bridge, PCI_PREF_MEMORY_BASE, &pmem);
-		pci_write_config_dword(bridge, PCI_PREF_MEMORY_BASE, 0x0);
-	}
-	if (!pmem)
-		return;
-
-	bridge->pref_window = 1;
-
-	if ((pmem & PCI_PREF_RANGE_TYPE_MASK) == PCI_PREF_RANGE_TYPE_64) {
-
-		/*
-		 * Bridge claims to have a 64-bit prefetchable memory
-		 * window; verify that the upper bits are actually
-		 * writable.
-		 */
-		pci_read_config_dword(bridge, PCI_PREF_BASE_UPPER32, &pmem);
-		pci_write_config_dword(bridge, PCI_PREF_BASE_UPPER32,
-				       0xffffffff);
-		pci_read_config_dword(bridge, PCI_PREF_BASE_UPPER32, &tmp);
-		pci_write_config_dword(bridge, PCI_PREF_BASE_UPPER32, pmem);
-		if (tmp)
-			bridge->pref_64_window = 1;
-	}
-}
-
 static void pci_read_bridge_io(struct pci_bus *child)
 {
 	struct pci_dev *dev = child->self;
@@ -1649,12 +1598,9 @@ int pci_setup_device(struct pci_dev *dev)
 	set_pcie_port_type(dev);
 
 	pci_dev_assign_slot(dev);
-
-	/*
-	 * Assume 32-bit PCI; let 64-bit PCI cards (which are far rarer)
-	 * set this higher, assuming the system even supports it.
-	 */
-	dev->dma_mask = 0xffffffff;
+	/* Assume 32-bit PCI; let 64-bit PCI cards (which are far rarer)
+	   set this higher, assuming the system even supports it.  */
+	dev->dma_mask = DMA_BIT_MASK(36);
 
 	dev_set_name(&dev->dev, "%04x:%02x:%02x.%d", pci_domain_nr(dev->bus),
 		     dev->bus->number, PCI_SLOT(dev->devfn),
@@ -1763,7 +1709,6 @@ int pci_setup_device(struct pci_dev *dev)
 		pci_read_irq(dev);
 		dev->transparent = ((dev->class & 0xff) == 1);
 		pci_read_bases(dev, 2, PCI_ROM_ADDRESS1);
-		pci_read_bridge_windows(dev);
 		set_pcie_hotplug_bridge(dev);
 		pos = pci_find_capability(dev, PCI_CAP_ID_SSVID);
 		if (pos) {
@@ -2359,7 +2304,6 @@ static struct pci_dev *pci_scan_device(struct pci_bus *bus, int devfn)
 	pci_set_of_node(dev);
 
 	if (pci_setup_device(dev)) {
-		pci_release_of_node(dev);
 		pci_bus_put(dev->bus);
 		kfree(dev);
 		return NULL;
@@ -2484,10 +2428,10 @@ void pci_device_add(struct pci_dev *dev, struct pci_bus *bus)
 	set_dev_node(&dev->dev, pcibus_to_node(bus));
 	dev->dev.dma_mask = &dev->dma_mask;
 	dev->dev.dma_parms = &dev->dma_parms;
-	dev->dev.coherent_dma_mask = 0xffffffffull;
+	dev->dev.coherent_dma_mask = DMA_BIT_MASK(36);
 
 	pci_set_dma_max_seg_size(dev, 65536);
-	pci_set_dma_seg_boundary(dev, 0xffffffff);
+	pci_set_dma_seg_boundary(dev, DMA_BIT_MASK(36));
 
 	/* Fix up broken headers */
 	pci_fixup_device(pci_fixup_header, dev);

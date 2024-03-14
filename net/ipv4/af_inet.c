@@ -120,6 +120,9 @@
 #include <linux/mroute.h>
 #endif
 #include <net/l3mdev.h>
+#ifdef CONFIG_NET_ANALYTICS
+#include <net/analytics.h>
+#endif
 
 #include <trace/events/sock.h>
 
@@ -157,7 +160,7 @@ void inet_sock_destruct(struct sock *sk)
 
 	kfree(rcu_dereference_protected(inet->inet_opt, 1));
 	dst_release(rcu_dereference_check(sk->sk_dst_cache, 1));
-	dst_release(rcu_dereference_protected(sk->sk_rx_dst, 1));
+	dst_release(sk->sk_rx_dst);
 	sk_refcnt_debug_dec(sk);
 }
 EXPORT_SYMBOL(inet_sock_destruct);
@@ -218,7 +221,7 @@ int inet_listen(struct socket *sock, int backlog)
 		 * because the socket was in TCP_LISTEN state previously but
 		 * was shutdown() rather than close().
 		 */
-		tcp_fastopen = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_fastopen);
+		tcp_fastopen = sock_net(sk)->ipv4.sysctl_tcp_fastopen;
 		if ((tcp_fastopen & TFO_SERVER_WO_SOCKOPT1) &&
 		    (tcp_fastopen & TFO_SERVER_ENABLE) &&
 		    !inet_csk(sk)->icsk_accept_queue.fastopenq.max_qlen) {
@@ -787,6 +790,9 @@ EXPORT_SYMBOL(inet_getname);
 int inet_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 {
 	struct sock *sk = sock->sk;
+#ifdef CONFIG_NET_ANALYTICS
+	int err;
+#endif
 
 	sock_rps_record_flow(sk);
 
@@ -795,7 +801,15 @@ int inet_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	    inet_autobind(sk))
 		return -EAGAIN;
 
+#ifdef CONFIG_NET_ANALYTICS
+	err = sk->sk_prot->sendmsg(sk, msg, size);
+	if (err > 0)
+		net_usr_tx(sk, err);
+
+	return err;
+#else
 	return sk->sk_prot->sendmsg(sk, msg, size);
+#endif
 }
 EXPORT_SYMBOL(inet_sendmsg);
 
@@ -831,6 +845,12 @@ int inet_recvmsg(struct socket *sock, struct msghdr *msg, size_t size,
 				   flags & ~MSG_DONTWAIT, &addr_len);
 	if (err >= 0)
 		msg->msg_namelen = addr_len;
+
+#ifdef CONFIG_NET_ANALYTICS
+	if (err > 0)
+		net_usr_rx(sk, err);
+#endif
+
 	return err;
 }
 EXPORT_SYMBOL(inet_recvmsg);
@@ -1209,7 +1229,7 @@ static int inet_sk_reselect_saddr(struct sock *sk)
 	if (new_saddr == old_saddr)
 		return 0;
 
-	if (READ_ONCE(sock_net(sk)->ipv4.sysctl_ip_dynaddr) > 1) {
+	if (sock_net(sk)->ipv4.sysctl_ip_dynaddr > 1) {
 		pr_info("%s(): shifting inet->saddr from %pI4 to %pI4\n",
 			__func__, &old_saddr, &new_saddr);
 	}
@@ -1264,7 +1284,7 @@ int inet_sk_rebuild_header(struct sock *sk)
 		 * Other protocols have to map its equivalent state to TCP_SYN_SENT.
 		 * DCCP maps its DCCP_REQUESTING state to TCP_SYN_SENT. -acme
 		 */
-		if (!READ_ONCE(sock_net(sk)->ipv4.sysctl_ip_dynaddr) ||
+		if (!sock_net(sk)->ipv4.sysctl_ip_dynaddr ||
 		    sk->sk_state != TCP_SYN_SENT ||
 		    (sk->sk_userlocks & SOCK_BINDADDR_LOCK) ||
 		    (err = inet_sk_reselect_saddr(sk)) != 0)
@@ -1338,11 +1358,8 @@ struct sk_buff *inet_gso_segment(struct sk_buff *skb,
 	}
 
 	ops = rcu_dereference(inet_offloads[proto]);
-	if (likely(ops && ops->callbacks.gso_segment)) {
+	if (likely(ops && ops->callbacks.gso_segment))
 		segs = ops->callbacks.gso_segment(skb, features);
-		if (!segs)
-			skb->network_header = skb_mac_header(skb) + nhoff - skb->head;
-	}
 
 	if (IS_ERR_OR_NULL(segs))
 		goto out;
@@ -1678,7 +1695,12 @@ static const struct net_protocol igmp_protocol = {
 };
 #endif
 
-static const struct net_protocol tcp_protocol = {
+/* thinking of making this const? Don't.
+ * early_demux can change based on sysctl.
+ */
+static struct net_protocol tcp_protocol = {
+	.early_demux	=	tcp_v4_early_demux,
+	.early_demux_handler =  tcp_v4_early_demux,
 	.handler	=	tcp_v4_rcv,
 	.err_handler	=	tcp_v4_err,
 	.no_policy	=	1,
@@ -1686,7 +1708,12 @@ static const struct net_protocol tcp_protocol = {
 	.icmp_strict_tag_validation = 1,
 };
 
-static const struct net_protocol udp_protocol = {
+/* thinking of making this const? Don't.
+ * early_demux can change based on sysctl.
+ */
+static struct net_protocol udp_protocol = {
+	.early_demux =	udp_v4_early_demux,
+	.early_demux_handler =	udp_v4_early_demux,
 	.handler =	udp_rcv,
 	.err_handler =	udp_err,
 	.no_policy =	1,
@@ -1948,10 +1975,6 @@ static int __init inet_init(void)
 
 	ip_init();
 
-	/* Initialise per-cpu ipv4 mibs */
-	if (init_ipv4_mibs())
-		panic("%s: Cannot init ipv4 mibs\n", __func__);
-
 	/* Setup TCP slab cache for open requests. */
 	tcp_init();
 
@@ -1980,6 +2003,12 @@ static int __init inet_init(void)
 
 	if (init_inet_pernet_ops())
 		pr_crit("%s: Cannot init ipv4 inet pernet ops\n", __func__);
+	/*
+	 *	Initialise per-cpu ipv4 mibs
+	 */
+
+	if (init_ipv4_mibs())
+		pr_crit("%s: Cannot init ipv4 mibs\n", __func__);
 
 	ipv4_proc_init();
 

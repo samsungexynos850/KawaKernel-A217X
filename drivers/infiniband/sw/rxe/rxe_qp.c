@@ -151,6 +151,7 @@ static void free_rd_atomic_resources(struct rxe_qp *qp)
 void free_rd_atomic_resource(struct rxe_qp *qp, struct resp_res *res)
 {
 	if (res->type == RXE_ATOMIC_MASK) {
+		rxe_drop_ref(qp);
 		kfree_skb(res->atomic.skb);
 	} else if (res->type == RXE_READ_MASK) {
 		if (res->read.mr)
@@ -210,14 +211,6 @@ static void rxe_qp_init_misc(struct rxe_dev *rxe, struct rxe_qp *qp,
 	spin_lock_init(&qp->grp_lock);
 	spin_lock_init(&qp->state_lock);
 
-	spin_lock_init(&qp->req.task.state_lock);
-	spin_lock_init(&qp->resp.task.state_lock);
-	spin_lock_init(&qp->comp.task.state_lock);
-
-	spin_lock_init(&qp->sq.sq_lock);
-	spin_lock_init(&qp->rq.producer_lock);
-	spin_lock_init(&qp->rq.consumer_lock);
-
 	atomic_set(&qp->ssn, 0);
 	atomic_set(&qp->skb_out, 0);
 }
@@ -257,7 +250,6 @@ static int rxe_qp_init_req(struct rxe_dev *rxe, struct rxe_qp *qp,
 	if (err) {
 		vfree(qp->sq.queue->buf);
 		kfree(qp->sq.queue);
-		qp->sq.queue = NULL;
 		return err;
 	}
 
@@ -266,6 +258,7 @@ static int rxe_qp_init_req(struct rxe_dev *rxe, struct rxe_qp *qp,
 	qp->req.opcode		= -1;
 	qp->comp.opcode		= -1;
 
+	spin_lock_init(&qp->sq.sq_lock);
 	skb_queue_head_init(&qp->req_pkts);
 
 	rxe_init_task(rxe, &qp->req.task, qp,
@@ -310,10 +303,12 @@ static int rxe_qp_init_resp(struct rxe_dev *rxe, struct rxe_qp *qp,
 		if (err) {
 			vfree(qp->rq.queue->buf);
 			kfree(qp->rq.queue);
-			qp->rq.queue = NULL;
 			return err;
 		}
 	}
+
+	spin_lock_init(&qp->rq.producer_lock);
+	spin_lock_init(&qp->rq.consumer_lock);
 
 	skb_queue_head_init(&qp->resp_pkts);
 
@@ -368,11 +363,6 @@ int rxe_qp_from_init(struct rxe_dev *rxe, struct rxe_qp *qp, struct rxe_pd *pd,
 err2:
 	rxe_queue_cleanup(qp->sq.queue);
 err1:
-	qp->pd = NULL;
-	qp->rcq = NULL;
-	qp->scq = NULL;
-	qp->srq = NULL;
-
 	if (srq)
 		rxe_drop_ref(srq);
 	rxe_drop_ref(scq);
@@ -593,16 +583,15 @@ int rxe_qp_from_attr(struct rxe_qp *qp, struct ib_qp_attr *attr, int mask,
 	int err;
 
 	if (mask & IB_QP_MAX_QP_RD_ATOMIC) {
-		int max_rd_atomic = attr->max_rd_atomic ?
-			roundup_pow_of_two(attr->max_rd_atomic) : 0;
+		int max_rd_atomic = __roundup_pow_of_two(attr->max_rd_atomic);
 
 		qp->attr.max_rd_atomic = max_rd_atomic;
 		atomic_set(&qp->req.rd_atomic, max_rd_atomic);
 	}
 
 	if (mask & IB_QP_MAX_DEST_RD_ATOMIC) {
-		int max_dest_rd_atomic = attr->max_dest_rd_atomic ?
-			roundup_pow_of_two(attr->max_dest_rd_atomic) : 0;
+		int max_dest_rd_atomic =
+			__roundup_pow_of_two(attr->max_dest_rd_atomic);
 
 		qp->attr.max_dest_rd_atomic = max_dest_rd_atomic;
 
@@ -799,9 +788,7 @@ void rxe_qp_destroy(struct rxe_qp *qp)
 	rxe_cleanup_task(&qp->comp.task);
 
 	/* flush out any receive wr's or pending requests */
-	if (qp->req.task.func)
-		__rxe_do_task(&qp->req.task);
-
+	__rxe_do_task(&qp->req.task);
 	if (qp->sq.queue) {
 		__rxe_do_task(&qp->comp.task);
 		__rxe_do_task(&qp->req.task);
@@ -836,15 +823,13 @@ static void rxe_qp_do_cleanup(struct work_struct *work)
 		qp->resp.mr = NULL;
 	}
 
+	if (qp_type(qp) == IB_QPT_RC)
+		sk_dst_reset(qp->sk->sk);
+
 	free_rd_atomic_resources(qp);
 
-	if (qp->sk) {
-		if (qp_type(qp) == IB_QPT_RC)
-			sk_dst_reset(qp->sk->sk);
-
-		kernel_sock_shutdown(qp->sk, SHUT_RDWR);
-		sock_release(qp->sk);
-	}
+	kernel_sock_shutdown(qp->sk, SHUT_RDWR);
+	sock_release(qp->sk);
 }
 
 /* called when the last reference to the qp is dropped */

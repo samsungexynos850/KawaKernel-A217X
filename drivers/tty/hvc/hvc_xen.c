@@ -37,8 +37,6 @@ struct xencons_info {
 	struct xenbus_device *xbdev;
 	struct xencons_interface *intf;
 	unsigned int evtchn;
-	XENCONS_RING_IDX out_cons;
-	unsigned int out_cons_same;
 	struct hvc_struct *hvc;
 	int irq;
 	int vtermno;
@@ -52,22 +50,17 @@ static DEFINE_SPINLOCK(xencons_lock);
 
 static struct xencons_info *vtermno_to_xencons(int vtermno)
 {
-	struct xencons_info *entry, *ret = NULL;
-	unsigned long flags;
+	struct xencons_info *entry, *n, *ret = NULL;
 
-	spin_lock_irqsave(&xencons_lock, flags);
-	if (list_empty(&xenconsoles)) {
-		spin_unlock_irqrestore(&xencons_lock, flags);
-		return NULL;
-	}
+	if (list_empty(&xenconsoles))
+			return NULL;
 
-	list_for_each_entry(entry, &xenconsoles, list) {
+	list_for_each_entry_safe(entry, n, &xenconsoles, list) {
 		if (entry->vtermno == vtermno) {
 			ret  = entry;
 			break;
 		}
 	}
-	spin_unlock_irqrestore(&xencons_lock, flags);
 
 	return ret;
 }
@@ -93,11 +86,7 @@ static int __write_console(struct xencons_info *xencons,
 	cons = intf->out_cons;
 	prod = intf->out_prod;
 	mb();			/* update queue values before going on */
-
-	if ((prod - cons) > sizeof(intf->out)) {
-		pr_err_once("xencons: Illegal ring page indices");
-		return -EINVAL;
-	}
+	BUG_ON((prod - cons) > sizeof(intf->out));
 
 	while ((sent < len) && ((prod - cons) < sizeof(intf->out)))
 		intf->out[MASK_XENCONS_IDX(prod++, intf->out)] = data[sent++];
@@ -125,10 +114,7 @@ static int domU_write_console(uint32_t vtermno, const char *data, int len)
 	 */
 	while (len) {
 		int sent = __write_console(cons, data, len);
-
-		if (sent < 0)
-			return sent;
-
+		
 		data += sent;
 		len -= sent;
 
@@ -145,8 +131,6 @@ static int domU_read_console(uint32_t vtermno, char *buf, int len)
 	XENCONS_RING_IDX cons, prod;
 	int recv = 0;
 	struct xencons_info *xencons = vtermno_to_xencons(vtermno);
-	unsigned int eoiflag = 0;
-
 	if (xencons == NULL)
 		return -EINVAL;
 	intf = xencons->intf;
@@ -154,11 +138,7 @@ static int domU_read_console(uint32_t vtermno, char *buf, int len)
 	cons = intf->in_cons;
 	prod = intf->in_prod;
 	mb();			/* get pointers before reading ring */
-
-	if ((prod - cons) > sizeof(intf->in)) {
-		pr_err_once("xencons: Illegal ring page indices");
-		return -EINVAL;
-	}
+	BUG_ON((prod - cons) > sizeof(intf->in));
 
 	while (cons != prod && recv < len)
 		buf[recv++] = intf->in[MASK_XENCONS_IDX(cons++, intf->in)];
@@ -166,27 +146,7 @@ static int domU_read_console(uint32_t vtermno, char *buf, int len)
 	mb();			/* read ring before consuming */
 	intf->in_cons = cons;
 
-	/*
-	 * When to mark interrupt having been spurious:
-	 * - there was no new data to be read, and
-	 * - the backend did not consume some output bytes, and
-	 * - the previous round with no read data didn't see consumed bytes
-	 *   (we might have a race with an interrupt being in flight while
-	 *   updating xencons->out_cons, so account for that by allowing one
-	 *   round without any visible reason)
-	 */
-	if (intf->out_cons != xencons->out_cons) {
-		xencons->out_cons = intf->out_cons;
-		xencons->out_cons_same = 0;
-	}
-	if (recv) {
-		notify_daemon(xencons);
-	} else if (xencons->out_cons_same++ > 1) {
-		eoiflag = XEN_EOI_FLAG_SPURIOUS;
-	}
-
-	xen_irq_lateeoi(xencons->irq, eoiflag);
-
+	notify_daemon(xencons);
 	return recv;
 }
 
@@ -228,7 +188,7 @@ static int xen_hvm_console_init(void)
 {
 	int r;
 	uint64_t v = 0;
-	unsigned long gfn, flags;
+	unsigned long gfn;
 	struct xencons_info *info;
 
 	if (!xen_hvm_domain())
@@ -263,9 +223,9 @@ static int xen_hvm_console_init(void)
 		goto err;
 	info->vtermno = HVC_COOKIE;
 
-	spin_lock_irqsave(&xencons_lock, flags);
+	spin_lock(&xencons_lock);
 	list_add_tail(&info->list, &xenconsoles);
-	spin_unlock_irqrestore(&xencons_lock, flags);
+	spin_unlock(&xencons_lock);
 
 	return 0;
 err:
@@ -288,7 +248,6 @@ static int xencons_info_pv_init(struct xencons_info *info, int vtermno)
 static int xen_pv_console_init(void)
 {
 	struct xencons_info *info;
-	unsigned long flags;
 
 	if (!xen_pv_domain())
 		return -ENODEV;
@@ -305,9 +264,9 @@ static int xen_pv_console_init(void)
 		/* already configured */
 		return 0;
 	}
-	spin_lock_irqsave(&xencons_lock, flags);
+	spin_lock(&xencons_lock);
 	xencons_info_pv_init(info, HVC_COOKIE);
-	spin_unlock_irqrestore(&xencons_lock, flags);
+	spin_unlock(&xencons_lock);
 
 	return 0;
 }
@@ -315,7 +274,6 @@ static int xen_pv_console_init(void)
 static int xen_initial_domain_console_init(void)
 {
 	struct xencons_info *info;
-	unsigned long flags;
 
 	if (!xen_initial_domain())
 		return -ENODEV;
@@ -330,9 +288,9 @@ static int xen_initial_domain_console_init(void)
 	info->irq = bind_virq_to_irq(VIRQ_CONSOLE, 0, false);
 	info->vtermno = HVC_COOKIE;
 
-	spin_lock_irqsave(&xencons_lock, flags);
+	spin_lock(&xencons_lock);
 	list_add_tail(&info->list, &xenconsoles);
-	spin_unlock_irqrestore(&xencons_lock, flags);
+	spin_unlock(&xencons_lock);
 
 	return 0;
 }
@@ -387,12 +345,10 @@ static void xencons_free(struct xencons_info *info)
 
 static int xen_console_remove(struct xencons_info *info)
 {
-	unsigned long flags;
-
 	xencons_disconnect_backend(info);
-	spin_lock_irqsave(&xencons_lock, flags);
+	spin_lock(&xencons_lock);
 	list_del(&info->list);
-	spin_unlock_irqrestore(&xencons_lock, flags);
+	spin_unlock(&xencons_lock);
 	if (info->xbdev != NULL)
 		xencons_free(info);
 	else {
@@ -419,7 +375,7 @@ static int xencons_connect_backend(struct xenbus_device *dev,
 	if (ret)
 		return ret;
 	info->evtchn = evtchn;
-	irq = bind_interdomain_evtchn_to_irq_lateeoi(dev->otherend_id, evtchn);
+	irq = bind_evtchn_to_irq(evtchn);
 	if (irq < 0)
 		return irq;
 	info->irq = irq;
@@ -473,7 +429,6 @@ static int xencons_probe(struct xenbus_device *dev,
 {
 	int ret, devid;
 	struct xencons_info *info;
-	unsigned long flags;
 
 	devid = dev->nodename[strlen(dev->nodename) - 1] - '0';
 	if (devid == 0)
@@ -492,9 +447,9 @@ static int xencons_probe(struct xenbus_device *dev,
 	ret = xencons_connect_backend(dev, info);
 	if (ret < 0)
 		goto error;
-	spin_lock_irqsave(&xencons_lock, flags);
+	spin_lock(&xencons_lock);
 	list_add_tail(&info->list, &xenconsoles);
-	spin_unlock_irqrestore(&xencons_lock, flags);
+	spin_unlock(&xencons_lock);
 
 	return 0;
 
@@ -584,7 +539,7 @@ static int __init xen_hvc_init(void)
 			return r;
 
 		info = vtermno_to_xencons(HVC_COOKIE);
-		info->irq = bind_evtchn_to_irq_lateeoi(info->evtchn);
+		info->irq = bind_evtchn_to_irq(info->evtchn);
 	}
 	if (info->irq < 0)
 		info->irq = 0; /* NO_IRQ */
@@ -593,12 +548,10 @@ static int __init xen_hvc_init(void)
 
 	info->hvc = hvc_alloc(HVC_COOKIE, info->irq, ops, 256);
 	if (IS_ERR(info->hvc)) {
-		unsigned long flags;
-
 		r = PTR_ERR(info->hvc);
-		spin_lock_irqsave(&xencons_lock, flags);
+		spin_lock(&xencons_lock);
 		list_del(&info->list);
-		spin_unlock_irqrestore(&xencons_lock, flags);
+		spin_unlock(&xencons_lock);
 		if (info->irq)
 			unbind_from_irqhandler(info->irq, NULL);
 		kfree(info);

@@ -24,6 +24,8 @@ menuconfig STAGING
 
 if STAGING
 
+source "drivers/staging/nanohub/Kconfig"
+
 source "drivers/staging/wlan-ng/Kconfig"
 
 source "drivers/staging/comedi/Kconfig"
@@ -113,6 +115,8 @@ source "drivers/staging/mt7621-pinctrl/Kconfig"
 source "drivers/staging/mt7621-spi/Kconfig"
 
 source "drivers/staging/mt7621-dma/Kconfig"
+
+source "drivers/staging/mt7621-mmc/Kconfig"
 
 source "drivers/staging/mt7621-eth/Kconfig"
 

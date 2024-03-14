@@ -39,7 +39,7 @@ struct debugfs_regset32 {
 
 extern struct dentry *arch_debugfs_dir;
 
-#define DEFINE_DEBUGFS_ATTRIBUTE_XSIGNED(__fops, __get, __set, __fmt, __is_signed)	\
+#define DEFINE_DEBUGFS_ATTRIBUTE(__fops, __get, __set, __fmt)		\
 static int __fops ## _open(struct inode *inode, struct file *file)	\
 {									\
 	__simple_attr_check_format(__fmt, 0ull);			\
@@ -50,17 +50,9 @@ static const struct file_operations __fops = {				\
 	.open	 = __fops ## _open,					\
 	.release = simple_attr_release,					\
 	.read	 = debugfs_attr_read,					\
-	.write	 = (__is_signed) ? debugfs_attr_write_signed : debugfs_attr_write,	\
+	.write	 = debugfs_attr_write,					\
 	.llseek  = no_llseek,						\
 }
-
-#define DEFINE_DEBUGFS_ATTRIBUTE(__fops, __get, __set, __fmt)		\
-	DEFINE_DEBUGFS_ATTRIBUTE_XSIGNED(__fops, __get, __set, __fmt, false)
-
-#define DEFINE_DEBUGFS_ATTRIBUTE_SIGNED(__fops, __get, __set, __fmt)	\
-	DEFINE_DEBUGFS_ATTRIBUTE_XSIGNED(__fops, __get, __set, __fmt, true)
-
-typedef struct vfsmount *(*debugfs_automount_t)(struct dentry *, void *);
 
 #if defined(CONFIG_DEBUG_FS)
 
@@ -83,6 +75,7 @@ struct dentry *debugfs_create_dir(const char *name, struct dentry *parent);
 struct dentry *debugfs_create_symlink(const char *name, struct dentry *parent,
 				      const char *dest);
 
+typedef struct vfsmount *(*debugfs_automount_t)(struct dentry *, void *);
 struct dentry *debugfs_create_automount(const char *name,
 					struct dentry *parent,
 					debugfs_automount_t f,
@@ -90,8 +83,6 @@ struct dentry *debugfs_create_automount(const char *name,
 
 void debugfs_remove(struct dentry *dentry);
 void debugfs_remove_recursive(struct dentry *dentry);
-
-void debugfs_lookup_and_remove(const char *name, struct dentry *parent);
 
 const struct file_operations *debugfs_real_fops(const struct file *filp);
 
@@ -101,8 +92,6 @@ void debugfs_file_put(struct dentry *dentry);
 ssize_t debugfs_attr_read(struct file *file, char __user *buf,
 			size_t len, loff_t *ppos);
 ssize_t debugfs_attr_write(struct file *file, const char __user *buf,
-			size_t len, loff_t *ppos);
-ssize_t debugfs_attr_write_signed(struct file *file, const char __user *buf,
 			size_t len, loff_t *ppos);
 
 struct dentry *debugfs_rename(struct dentry *old_dir, struct dentry *old_dentry,
@@ -215,7 +204,7 @@ static inline struct dentry *debugfs_create_symlink(const char *name,
 
 static inline struct dentry *debugfs_create_automount(const char *name,
 					struct dentry *parent,
-					debugfs_automount_t f,
+					struct vfsmount *(*f)(void *),
 					void *data)
 {
 	return ERR_PTR(-ENODEV);
@@ -225,10 +214,6 @@ static inline void debugfs_remove(struct dentry *dentry)
 { }
 
 static inline void debugfs_remove_recursive(struct dentry *dentry)
-{ }
-
-static inline void debugfs_lookup_and_remove(const char *name,
-					     struct dentry *parent)
 { }
 
 const struct file_operations *debugfs_real_fops(const struct file *filp);
@@ -248,13 +233,6 @@ static inline ssize_t debugfs_attr_read(struct file *file, char __user *buf,
 }
 
 static inline ssize_t debugfs_attr_write(struct file *file,
-					const char __user *buf,
-					size_t len, loff_t *ppos)
-{
-	return -ENODEV;
-}
-
-static inline ssize_t debugfs_attr_write_signed(struct file *file,
 					const char __user *buf,
 					size_t len, loff_t *ppos)
 {

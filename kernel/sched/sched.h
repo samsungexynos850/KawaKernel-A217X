@@ -66,6 +66,7 @@
 #include <linux/syscalls.h>
 #include <linux/task_work.h>
 #include <linux/tsacct_kern.h>
+#include <linux/ems.h>
 
 #include <asm/tlb.h>
 
@@ -213,8 +214,6 @@ static inline int task_has_dl_policy(struct task_struct *p)
  */
 #define SCHED_FLAG_SUGOV	0x10000000
 
-#define SCHED_DL_FLAGS (SCHED_FLAG_RECLAIM | SCHED_FLAG_DL_OVERRUN | SCHED_FLAG_SUGOV)
-
 static inline bool dl_entity_is_special(struct sched_dl_entity *dl_se)
 {
 #ifdef CONFIG_CPU_FREQ_GOV_SCHEDUTIL
@@ -253,6 +252,30 @@ struct rt_bandwidth {
 
 void __dl_clear_params(struct task_struct *p);
 
+/*
+ * To keep the bandwidth of -deadline tasks and groups under control
+ * we need some place where:
+ *  - store the maximum -deadline bandwidth of the system (the group);
+ *  - cache the fraction of that bandwidth that is currently allocated.
+ *
+ * This is all done in the data structure below. It is similar to the
+ * one used for RT-throttling (rt_bandwidth), with the main difference
+ * that, since here we are only interested in admission control, we
+ * do not decrease any runtime while the group "executes", neither we
+ * need a timer to replenish it.
+ *
+ * With respect to SMP, the bandwidth is given on a per-CPU basis,
+ * meaning that:
+ *  - dl_bw (< 100%) is the bandwidth of the system (group) on each CPU;
+ *  - dl_total_bw array contains, in the i-eth element, the currently
+ *    allocated bandwidth on the i-eth CPU.
+ * Moreover, groups consume bandwidth on each CPU, while tasks only
+ * consume bandwidth on the CPU they're running on.
+ * Finally, dl_total_bw_cpu is used to cache the index of dl_total_bw
+ * that will be shown the next time the proc or cgroup controls will
+ * be red. It on its turn can be changed by writing on its own
+ * control.
+ */
 struct dl_bandwidth {
 	raw_spinlock_t		dl_runtime_lock;
 	u64			dl_runtime;
@@ -264,24 +287,6 @@ static inline int dl_bandwidth_enabled(void)
 	return sysctl_sched_rt_runtime >= 0;
 }
 
-/*
- * To keep the bandwidth of -deadline tasks under control
- * we need some place where:
- *  - store the maximum -deadline bandwidth of each cpu;
- *  - cache the fraction of bandwidth that is currently allocated in
- *    each root domain;
- *
- * This is all done in the data structure below. It is similar to the
- * one used for RT-throttling (rt_bandwidth), with the main difference
- * that, since here we are only interested in admission control, we
- * do not decrease any runtime while the group "executes", neither we
- * need a timer to replenish it.
- *
- * With respect to SMP, bandwidth is given on a per root domain basis,
- * meaning that:
- *  - bw (< 100%) is the deadline bandwidth of each CPU;
- *  - total_bw is the currently allocated bandwidth in each root domain;
- */
 struct dl_bw {
 	raw_spinlock_t		lock;
 	u64			bw;
@@ -472,7 +477,7 @@ extern void set_task_rq_fair(struct sched_entity *se,
 			     struct cfs_rq *prev, struct cfs_rq *next);
 #else /* !CONFIG_SMP */
 static inline void set_task_rq_fair(struct sched_entity *se,
-			     struct cfs_rq *prev, struct cfs_rq *next) { }
+			     struct rt_rq *prev, struct rt_rq *next) { }
 #endif /* CONFIG_SMP */
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 
@@ -515,6 +520,7 @@ struct cfs_rq {
 	 * CFS load tracking
 	 */
 	struct sched_avg	avg;
+	struct multi_load	ml;
 #ifndef CONFIG_64BIT
 	u64			load_last_update_time_copy;
 #endif
@@ -525,6 +531,13 @@ struct cfs_rq {
 		unsigned long	util_avg;
 		unsigned long	runnable_sum;
 	} removed;
+
+	struct {
+		raw_spinlock_t	lock ____cacheline_aligned;
+		int		nr;
+		unsigned long	util_avg;
+		unsigned long	util_avg_s;
+	} ml_removed;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	unsigned long		tg_load_avg_contrib;
@@ -600,6 +613,32 @@ struct rt_rq {
 	unsigned long		rt_nr_total;
 	int			overloaded;
 	struct plist_head	pushable_tasks;
+
+	struct sched_avg	avg;
+	struct {
+		raw_spinlock_t	lock ____cacheline_aligned;
+		int		nr;
+		unsigned long	util_avg;
+	} removed;
+#ifndef CONFIG_64BIT
+	u64			load_last_update_time_copy_rt;
+#endif
+#ifdef CONFIG_RT_GROUP_SCHED
+	unsigned long		tg_load_avg_contrib;
+	long			propagate;
+	long			prop_runnable_sum;
+
+	/*
+	 *   h_load = weight * f(tg)
+	 *
+	 * Where f(tg) is the recursive weight fraction assigned to
+	 * this group.
+	 */
+	unsigned long		h_load;
+	u64			last_h_load_update;
+	struct sched_entity	*h_load_next;
+#endif /* CONFIG_RT_GROUP_SCHED */
+	struct sched_rt_entity *curr;
 
 #endif /* CONFIG_SMP */
 	int			rt_queued;
@@ -908,6 +947,10 @@ struct rq {
 	u64			max_idle_balance_cost;
 #endif
 
+	struct part pa;
+
+	bool			ontime_migrating;
+
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
 	u64			prev_irq_time;
 #endif
@@ -957,6 +1000,8 @@ struct rq {
 	struct cpuidle_state	*idle_state;
 	int			idle_state_idx;
 #endif
+	struct list_head uss_cfs_tasks;
+	struct list_head sse_cfs_tasks;
 };
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -1458,6 +1503,7 @@ static inline void set_task_rq(struct task_struct *p, unsigned int cpu)
 #endif
 
 #ifdef CONFIG_RT_GROUP_SCHED
+	frt_set_task_rq_rt(&p->rt, p->rt.rt_rq, tg->rt_rq[cpu]);
 	p->rt.rt_rq  = tg->rt_rq[cpu];
 	p->rt.parent = tg->rt_se[cpu];
 #endif
@@ -1512,7 +1558,7 @@ enum {
 
 #undef SCHED_FEAT
 
-#ifdef CONFIG_SCHED_DEBUG
+#if defined(CONFIG_SCHED_DEBUG) && defined(CONFIG_JUMP_LABEL)
 
 /*
  * To support run-time toggling of sched features, all the translation units
@@ -1520,7 +1566,6 @@ enum {
  */
 extern const_debug unsigned int sysctl_sched_features;
 
-#ifdef CONFIG_JUMP_LABEL
 #define SCHED_FEAT(name, enabled)					\
 static __always_inline bool static_branch_##name(struct static_key *key) \
 {									\
@@ -1533,13 +1578,7 @@ static __always_inline bool static_branch_##name(struct static_key *key) \
 extern struct static_key sched_feat_keys[__SCHED_FEAT_NR];
 #define sched_feat(x) (static_branch_##x(&sched_feat_keys[__SCHED_FEAT_##x]))
 
-#else /* !CONFIG_JUMP_LABEL */
-
-#define sched_feat(x) (sysctl_sched_features & (1UL << __SCHED_FEAT_##x))
-
-#endif /* CONFIG_JUMP_LABEL */
-
-#else /* !SCHED_DEBUG */
+#else /* !(SCHED_DEBUG && CONFIG_JUMP_LABEL) */
 
 /*
  * Each translation unit has its own copy of sysctl_sched_features to allow
@@ -1555,7 +1594,7 @@ static const_debug __maybe_unused unsigned int sysctl_sched_features =
 
 #define sched_feat(x) !!(sysctl_sched_features & (1UL << __SCHED_FEAT_##x))
 
-#endif /* SCHED_DEBUG */
+#endif /* SCHED_DEBUG && CONFIG_JUMP_LABEL */
 
 extern struct static_key_false sched_numa_balancing;
 extern struct static_key_false sched_schedstats;
@@ -1618,6 +1657,7 @@ static inline int task_on_rq_migrating(struct task_struct *p)
 
 extern const int		sched_prio_to_weight[40];
 extern const u32		sched_prio_to_wmult[40];
+extern const int		rtprio_to_weight[51];
 
 /*
  * {de,en}queue flags:
@@ -2336,6 +2376,9 @@ static inline unsigned long cpu_util_cfs(struct rq *rq)
 
 static inline unsigned long cpu_util_rt(struct rq *rq)
 {
+	if (sched_feat(EXYNOS_FRT))
+		return READ_ONCE(rq->rt.avg.util_avg);
+
 	return READ_ONCE(rq->avg_rt.util_avg);
 }
 #endif

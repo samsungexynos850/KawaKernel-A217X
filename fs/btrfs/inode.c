@@ -628,21 +628,7 @@ cont:
 						     PAGE_SET_WRITEBACK |
 						     page_error_op |
 						     PAGE_END_WRITEBACK);
-
-			/*
-			 * Ensure we only free the compressed pages if we have
-			 * them allocated, as we can still reach here with
-			 * inode_need_compress() == false.
-			 */
-			if (pages) {
-				for (i = 0; i < nr_pages; i++) {
-					WARN_ON(pages[i]->mapping);
-					put_page(pages[i]);
-				}
-				kfree(pages);
-			}
-
-			return;
+			goto free_pages_out;
 		}
 	}
 
@@ -720,6 +706,13 @@ cleanup_and_bail_uncompressed:
 	*num_added += 1;
 
 	return;
+
+free_pages_out:
+	for (i = 0; i < nr_pages; i++) {
+		WARN_ON(pages[i]->mapping);
+		put_page(pages[i]);
+	}
+	kfree(pages);
 }
 
 static void free_async_extent_pages(struct async_extent *async_extent)
@@ -3162,18 +3155,6 @@ out:
 	if (ret || truncated) {
 		u64 start, end;
 
-		/*
-		 * If we failed to finish this ordered extent for any reason we
-		 * need to make sure BTRFS_ORDERED_IOERR is set on the ordered
-		 * extent, and mark the inode with the error if it wasn't
-		 * already set.  Any error during writeback would have already
-		 * set the mapping error, so we need to set it if we're the ones
-		 * marking this ordered extent as failed.
-		 */
-		if (ret && !test_and_set_bit(BTRFS_ORDERED_IOERR,
-					     &ordered_extent->flags))
-			mapping_set_error(ordered_extent->inode->i_mapping, -EIO);
-
 		if (truncated)
 			start = ordered_extent->file_offset + logical_len;
 		else
@@ -4477,8 +4458,6 @@ int btrfs_delete_subvolume(struct inode *dir, struct dentry *dentry)
 		}
 	}
 
-	free_anon_bdev(dest->anon_dev);
-	dest->anon_dev = 0;
 out_end_trans:
 	trans->block_rsv = NULL;
 	trans->bytes_reserved = 0;
@@ -5574,14 +5553,12 @@ no_delete:
 }
 
 /*
- * Return the key found in the dir entry in the location pointer, fill @type
- * with BTRFS_FT_*, and return 0.
- *
+ * this returns the key found in the dir entry in the location pointer.
  * If no dir entries were found, returns -ENOENT.
  * If found a corrupted location in dir entry, returns -EUCLEAN.
  */
 static int btrfs_inode_by_name(struct inode *dir, struct dentry *dentry,
-			       struct btrfs_key *location, u8 *type)
+			       struct btrfs_key *location)
 {
 	const char *name = dentry->d_name.name;
 	int namelen = dentry->d_name.len;
@@ -5614,8 +5591,6 @@ static int btrfs_inode_by_name(struct inode *dir, struct dentry *dentry,
 			   __func__, name, btrfs_ino(BTRFS_I(dir)),
 			   location->objectid, location->type, location->offset);
 	}
-	if (!ret)
-		*type = btrfs_dir_type(path->nodes[0], di);
 out:
 	btrfs_free_path(path);
 	return ret;
@@ -5851,11 +5826,6 @@ static struct inode *new_simple_dir(struct super_block *s,
 	return inode;
 }
 
-static inline u8 btrfs_inode_type(struct inode *inode)
-{
-	return btrfs_type_by_mode[(inode->i_mode & S_IFMT) >> S_SHIFT];
-}
-
 struct inode *btrfs_lookup_dentry(struct inode *dir, struct dentry *dentry)
 {
 	struct btrfs_fs_info *fs_info = btrfs_sb(dir->i_sb);
@@ -5863,31 +5833,18 @@ struct inode *btrfs_lookup_dentry(struct inode *dir, struct dentry *dentry)
 	struct btrfs_root *root = BTRFS_I(dir)->root;
 	struct btrfs_root *sub_root = root;
 	struct btrfs_key location;
-	u8 di_type = 0;
 	int index;
 	int ret = 0;
 
 	if (dentry->d_name.len > BTRFS_NAME_LEN)
 		return ERR_PTR(-ENAMETOOLONG);
 
-	ret = btrfs_inode_by_name(dir, dentry, &location, &di_type);
+	ret = btrfs_inode_by_name(dir, dentry, &location);
 	if (ret < 0)
 		return ERR_PTR(ret);
 
 	if (location.type == BTRFS_INODE_ITEM_KEY) {
 		inode = btrfs_iget(dir->i_sb, &location, root, NULL);
-		if (IS_ERR(inode))
-			return inode;
-
-		/* Do extra check against inode mode with di_type */
-		if (btrfs_inode_type(inode) != di_type) {
-			btrfs_crit(fs_info,
-"inode mode mismatch with dir: inode mode=0%o btrfs type=%u dir type=%u",
-				  inode->i_mode, btrfs_inode_type(inode),
-				  di_type);
-			iput(inode);
-			return ERR_PTR(-EUCLEAN);
-		}
 		return inode;
 	}
 
@@ -6498,6 +6455,11 @@ fail:
 	return ERR_PTR(ret);
 }
 
+static inline u8 btrfs_inode_type(struct inode *inode)
+{
+	return btrfs_type_by_mode[(inode->i_mode & S_IFMT) >> S_SHIFT];
+}
+
 /*
  * utility function to add 'inode' into 'parent_inode' with
  * a give name and a given sequence number.
@@ -7031,14 +6993,6 @@ struct extent_map *btrfs_get_extent(struct btrfs_inode *inode,
 	extent_start = found_key.offset;
 	if (found_type == BTRFS_FILE_EXTENT_REG ||
 	    found_type == BTRFS_FILE_EXTENT_PREALLOC) {
-		/* Only regular file could have regular/prealloc extent */
-		if (!S_ISREG(inode->vfs_inode.i_mode)) {
-			err = -EUCLEAN;
-			btrfs_crit(fs_info,
-		"regular/prealloc extent found for non-regular inode %llu",
-				   btrfs_ino(inode));
-			goto out;
-		}
 		extent_end = extent_start +
 		       btrfs_file_extent_num_bytes(leaf, item);
 
@@ -8925,17 +8879,20 @@ again:
 	/*
 	 * Qgroup reserved space handler
 	 * Page here will be either
-	 * 1) Already written to disk or ordered extent already submitted
-	 *    Then its QGROUP_RESERVED bit in io_tree is already cleaned.
-	 *    Qgroup will be handled by its qgroup_record then.
-	 *    btrfs_qgroup_free_data() call will do nothing here.
-	 *
-	 * 2) Not written to disk yet
-	 *    Then btrfs_qgroup_free_data() call will clear the QGROUP_RESERVED
-	 *    bit of its io_tree, and free the qgroup reserved data space.
-	 *    Since the IO will never happen for this page.
+	 * 1) Already written to disk
+	 *    In this case, its reserved space is released from data rsv map
+	 *    and will be freed by delayed_ref handler finally.
+	 *    So even we call qgroup_free_data(), it won't decrease reserved
+	 *    space.
+	 * 2) Not written to disk
+	 *    This means the reserved space should be freed here. However,
+	 *    if a truncate invalidates the page (by clearing PageDirty)
+	 *    and the page is accounted for while allocating extent
+	 *    in btrfs_check_data_free_space() we let delayed_ref to
+	 *    free the entire extent.
 	 */
-	btrfs_qgroup_free_data(inode, NULL, page_start, PAGE_SIZE);
+	if (PageDirty(page))
+		btrfs_qgroup_free_data(inode, NULL, page_start, PAGE_SIZE);
 	if (!inode_evicting) {
 		clear_extent_bit(tree, page_start, page_end,
 				 EXTENT_LOCKED | EXTENT_DIRTY |
@@ -9484,7 +9441,7 @@ int __init btrfs_init_cachep(void)
 
 	btrfs_free_space_bitmap_cachep = kmem_cache_create("btrfs_free_space_bitmap",
 							PAGE_SIZE, PAGE_SIZE,
-							SLAB_MEM_SPREAD, NULL);
+							SLAB_RED_ZONE, NULL);
 	if (!btrfs_free_space_bitmap_cachep)
 		goto fail;
 
@@ -9556,14 +9513,8 @@ static int btrfs_rename_exchange(struct inode *old_dir,
 	bool sync_log_dest = false;
 	bool commit_transaction = false;
 
-	/*
-	 * For non-subvolumes allow exchange only within one subvolume, in the
-	 * same inode namespace. Two subvolumes (represented as directory) can
-	 * be exchanged as they're a logical link and have a fixed inode number.
-	 */
-	if (root != dest &&
-	    (old_ino != BTRFS_FIRST_FREE_OBJECTID ||
-	     new_ino != BTRFS_FIRST_FREE_OBJECTID))
+	/* we only allow rename subvolume link between subvolumes */
+	if (old_ino != BTRFS_FIRST_FREE_OBJECTID && root != dest)
 		return -EXDEV;
 
 	btrfs_init_log_ctx(&ctx_root, old_inode);
