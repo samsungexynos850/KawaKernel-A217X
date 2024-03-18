@@ -55,8 +55,8 @@ struct id_tbl_info {
 #define ASV_INFO_ADDR_CNT	(sizeof(struct asv_tbl_info) / 4)
 #define ID_INFO_ADDR_CNT	(sizeof(struct id_tbl_info) / 4)
 
-static struct asv_tbl_info asv_tbl;
-static struct id_tbl_info id_tbl;
+static volatile struct asv_tbl_info asv_tbl;
+static volatile struct id_tbl_info id_tbl;
 
 int asv_get_grp(unsigned int id)
 {
