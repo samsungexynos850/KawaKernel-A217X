@@ -815,6 +815,7 @@
 #define SW_GLOVE		0x0f	/* set = glove mode */
 #define SW_FLIP                 0x15    /* set = flip cover */
 #define SW_CERTIFYHALL          0x1b    /* set = certify_hall... */
+#define SW_MACHINE_COVER	0x10  /* set = cover closed */
 #define SW_MAX			0x20
 
 #define SW_CNT			(SW_MAX+1)
