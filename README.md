@@ -1,5 +1,5 @@
 # KawaKernel Source Code for SM-A217M/F
-**Based on A217MUBSBDWI1**
+**Based on A217MUBUADWE2**
 
 ## About
 KawaKernel is a performance oriented kernel tuned for pushing as much performance as possible from the device.
