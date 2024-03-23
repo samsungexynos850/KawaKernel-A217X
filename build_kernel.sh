@@ -7,7 +7,7 @@ export ANDROID_MAJOR_VERSION=s
 export ARCH=arm64
 
 export LLVM=1
-export PATH="$HOME/toolchains/azure-clang/bin:$PATH"
+export PATH="$HOME/Development/toolchains/azure-clang/bin:$PATH"
 export CROSS_COMPILE=aarch64-linux-gnu-
 
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
@@ -66,12 +66,13 @@ $KAWA_LOC/mkdtimg cfg_create $DTB_LOC/dtbo.img $KAWA_LOC/dtbo.cfg -d $DTB_LOC/sa
 echo 'Done!'
 
 # Build boot.img
-$KAWA_LOC/AIK-Linux/unpackimg.sh
+# $KAWA_LOC/AIK-Linux/unpackimg.sh
 ###
 cp -r $DTB_LOC/dtb.img $KAWA_LOC/AIK-Linux/split_img/boot.img-dtb
 cp -r $DTB_LOC/../Image $KAWA_LOC/AIK-Linux/split_img/boot.img-kernel
 ###
-$KAWA_LOC/AIK-Linux/repackimg.sh
+read -p "Go repack now! then hit Enter!: "
+#$KAWA_LOC/AIK-Linux/repackimg.sh
 cp -r $KAWA_LOC/AIK-Linux/image-new.img $KAWA_LOC/Flashable/boot.img
 $KAWA_LOC/AIK-Linux/cleanup.sh
 echo 'Check Kawa/Flashable for boot.img'
