@@ -1371,15 +1371,9 @@ static int random_fasync(int fd, struct file *filp, int on)
 }
 
 const struct file_operations random_fops = {
-<<<<<<< HEAD
-	.read  = urandom_read,
-	.write = random_write,
-	.poll  = random_poll,
-=======
-	.read_iter = random_read_iter,
+	.read_iter = urandom_read_iter,
 	.write_iter = random_write_iter,
 	.poll = random_poll,
->>>>>>> 47be2e7b1bb88af5ce4102a398c9e28b8d2a5378
 	.unlocked_ioctl = random_ioctl,
 	.fasync = random_fasync,
 	.llseek = noop_llseek,
