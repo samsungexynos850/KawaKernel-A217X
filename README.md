@@ -58,4 +58,8 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * Proceed to flash
 * Boot
 
+## KernelSU App
+* Download the [KernelSU APK](https://github.com/tiann/KernelSU/releases/download/v0.9.2/KernelSU_v0.9.2_11682-release.apk)
+* This app can be used to install modules and give apps root access
+
 **Join our [Telegram](https://t.me/+NkphbKPxiB8xZjY9) group to get updates about our device**
