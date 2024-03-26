@@ -628,7 +628,7 @@ static int __init exynos_sysmmu_probe(struct platform_device *pdev)
 	iommu_device_set_fwnode(&data->iommu, &dev->of_node->fwnode);
 
 	ret = iommu_device_register(&data->iommu);
-	if (ret)
+	if (ret) {
 		goto err_iommu_register;
 	}
 
