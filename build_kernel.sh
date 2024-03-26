@@ -1,7 +1,6 @@
 #!/bin/bash
 # Build script for KawaKernel
 
-clear
 export PLATFORM_VERSION=12
 export ANDROID_MAJOR_VERSION=s
 export ARCH=arm64
@@ -28,24 +27,19 @@ if [[ $clean_confirm == [yY] || $clean_confirm == [yY][eE][sS] ]]; then
 else
     echo "Source will not be cleaned for this build."
 fi
-clear
 
 read -p $'Choose variant:\x0a1) Android (Standard)\x0a2) Android (Permissive)\x0a3) Recovery\x0aSelection: ' device_selection
 if [[ $device_selection == 1 ]]; then
-    clear
     echo "Selected Android (Standard)"
     cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
 elif [[ $device_selection == 2 ]]; then
-    clear
     echo "Selected Android (Permissive)"
     cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
     cat $DEFCONFIG_LOC/permissive_defconfig >> $DEFCONFIG_LOC/.tmp_defconfig
 elif [[ $device_selection == 3 ]]; then
-    clear
     echo "Selected Recovery"
     cat $DEFCONFIG_LOC/twrp_slim_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
 else
-    clear
     echo $'You have not selected a valid variant!\x0aQuit'
     exit 0;
 fi
