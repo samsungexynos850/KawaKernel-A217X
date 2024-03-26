@@ -13,6 +13,16 @@ export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
 export DTB_LOC=$(pwd)/out/arch/$ARCH/boot/dts
 export KAWA_LOC=$(pwd)/Kawa
 
+# Check for Android Build environment, to disable the necessary options
+if [ -n "$ANDROID_BUILD_TOP" ]; then
+    echo "AOSP Environment detected!"
+	echo "Fixing up Kernel source"
+else
+	# This can be removed later on once testing has been done
+    echo "*DEBUG*: AOSP env not detected"
+    # Do something if ANDROID_BUILD_TOP is not set
+fi
+
 # Reguardless of clean build or not, remove these files
 rm -rf $DEFCONFIG_LOC/.tmp_defconfig
 rm -rf $KAWA_LOC/boot.img
