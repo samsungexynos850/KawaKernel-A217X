@@ -736,7 +736,8 @@ endif
 KBUILD_CFLAGS 	+= $(call cc-disable-warning,maybe-uninitialized,) \
 		   $(call cc-disable-warning,unused-variable,) \
 		   $(call cc-disable-warning,unused-function)
-		   
+
+ifdef CONFIG_POLLY_CLANG
 # Enable Clang Polly optimizations
 KBUILD_CFLAGS	+= -mllvm -polly \
 		   -mllvm -polly-run-inliner \
@@ -744,7 +745,7 @@ KBUILD_CFLAGS	+= -mllvm -polly \
 		   -mllvm -polly-loopfusion-greedy=1 \
 		   -mllvm -polly-postopts=1 \
 		   -mllvm -polly-num-threads=0 \
-	           -mllvm -polly-omp-backend=LLVM \
+		   -mllvm -polly-omp-backend=LLVM \
 		   -mllvm -polly-scheduling=dynamic \
 		   -mllvm -polly-scheduling-chunksize=1 \
 		   -mllvm -polly-isl-arg=--no-schedule-serialize-sccs \
@@ -754,6 +755,7 @@ KBUILD_CFLAGS	+= -mllvm -polly \
 		   -mllvm -polly-vectorizer=stripmine \
 		   -mllvm -polly-detect-profitability-min-per-loop-insts=40 \
 		   -mllvm -polly-invariant-load-hoisting
+endif
 
 # Tell gcc to never replace conditional load with a non-conditional one
 KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)

@@ -1274,6 +1274,12 @@ config CC_OPTIMIZE_FOR_SIZE
 
 endchoice
 
+config POLLY_CLANG
+	bool "LLVM Polly Optimizations"
+	default n
+	help
+	Enabling this option will pass Polly optimization flags to the Clang LLVM compiler.
+
 config HAVE_LD_DEAD_CODE_DATA_ELIMINATION
 	bool
 	help
