@@ -20,15 +20,14 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * MEM: Backported linux-5.17 lib/LZ4
 * MEM: ZRam enabled with LZ4 as default compression algorithm
 * MEM: KSM enabled (turned off by default)
-* CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz by Physwizz
-* CPU: Undervolted by -25mV
+* CPU: Overclocked to 2210 Mhz and underclocked to 130 Mhz
 * CPU: Default CPUFREQ Governor: SCHEDUTIL
-* GPU: Overclocked to 1196 Mhz
+* GPU: Overclocked to 1196 Mhz and underclocked to 100 Mhz
 * GPU: High speed frequency is 754 Mhz by default
 * GPU: Adaptive power policy (default)
-* SCHED: Implemented Capacity Aware Superset Scheduler
 
 **Battery savings**
+* Implemented Capacity Aware Superset Scheduler
 * Implemented Boeffla wakelock blocker v1.1.0
 * Implemented Powersuspend v2.0 driver
 * Dynamic Fsync
@@ -42,14 +41,15 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 * Disabled some log spam
 * Kernel support for Wireguard vpn
 * Mass storage support (DriveDroid, etc)
-* Can boot OneUI 6 ROMs
 * Prerooted with KernelSU
-* SCHED: Implemented SchedTune Assist
+* Implemented SchedTune Assist
+* CPU and GPU voltage control
+* Kernel upstream
 
 *And many more*
 
 ## Download
-* [KawaKernel A12](https://github.com/DozNaka/KawaKernel-A217X/releases/latest)
+* [KawaKernel A12](https://github.com/samsungexynos850/KawaKernel-A217X/releases/latest)
 * [KawaKernel A11 (EOL)](https://github.com/DozNaka/KawaKernel-A217X/releases/tag/KawaKernel-v1.3.1)
 
 ## Installation
@@ -61,5 +61,10 @@ KawaKernel is a performance oriented kernel tuned for pushing as much performanc
 ## KernelSU App
 * Download the [KernelSU APK](https://github.com/tiann/KernelSU/releases/download/v0.9.2/KernelSU_v0.9.2_11682-release.apk)
 * This app can be used to install modules and give apps root access
+
+## Credits
+**xxmustafacooTR**: KernelManager, voltage control implementation, overclock implementation.
+**Physwizz**: Initial project and overclock
+And those who are on the contribution list including on reference commits
 
 **Join our [Telegram](https://t.me/+NkphbKPxiB8xZjY9) group to get updates about our device**
