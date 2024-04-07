@@ -26,32 +26,6 @@ export PACKAGING=$(pwd)/Kawa/packaging
 DATE=$(date +"%m-%d-%y")
 BUILD_START=$(date +"%s")
 
-<<<<<<< HEAD
-read -p "Clean source? [N] (Y/N): " clean_confirm
-if [[ $clean_confirm == [yY] || $clean_confirm == [yY][eE][sS] ]]; then
-    echo "Cleaning source ..."
-    make clean && make mrproper
-    rm -rf $(pwd)/out
-else
-    echo "Source will not be cleaned for this build."
-fi
-
-read -p $'Choose variant:\x0a1) Android (Standard)\x0a2) Android (Permissive)\x0a3) Recovery\x0aSelection: ' device_selection
-if [[ $device_selection == 1 ]]; then
-    echo "Selected Android (Standard)"
-    cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
-elif [[ $device_selection == 2 ]]; then
-    echo "Selected Android (Permissive)"
-    cat $DEFCONFIG_LOC/kawa_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
-    cat $DEFCONFIG_LOC/permissive_defconfig >> $DEFCONFIG_LOC/.tmp_defconfig
-elif [[ $device_selection == 3 ]]; then
-    echo "Selected Recovery"
-    cat $DEFCONFIG_LOC/twrp_slim_defconfig > $DEFCONFIG_LOC/.tmp_defconfig
-else
-    echo $'You have not selected a valid variant!\x0aQuit'
-    exit 0;
-fi
-=======
 ################### Executable functions #######################
 CLEAN_PACKAGES()
 {
@@ -64,7 +38,6 @@ CLEAN_PACKAGES()
 	rm -rf $KAWA_LOC/packaging/*.zip
 	rm -rf $KAWA_BOOT/Image
 	rm -rf $DEFCONFIG_LOC/.tmp_defconfig
->>>>>>> 1d45eeb8b5a7 (Fully reworked the build script and switched compiler to proton-clang)
 
 }
 
@@ -93,13 +66,6 @@ UPDATE_DEPS()
   	fi
 }
 
-<<<<<<< HEAD
-# Create flashable zip
-cd $KAWA_LOC/Flashable
-zip -r KawaKernel-A217X.zip *
-cd ../../
-echo 'Check Kawa/Flashable for KawaKernel-A217X.zip'
-=======
 DETECT_TOOLCHAIN()
 {
 	if [ ! -e "$HOME/toolchains/proton-clang" ]; then
@@ -233,4 +199,3 @@ MAIN()
 
 # Call the function which runs everything
 MAIN
->>>>>>> 1d45eeb8b5a7 (Fully reworked the build script and switched compiler to proton-clang)
