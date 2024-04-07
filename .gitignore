@@ -6,6 +6,6 @@ Kawa/AIK-Linux/split_img/boot.img-kernel
 Kawa/AIK-Linux/split_img/boot.img-dtb
 Kawa/AIK-Linux/ramdisk-new.cpio.gz
 Kawa/AIK-Linux/image-new.img
-Kawa/Flashable/boot.img
-Kawa/Flashable/KawaKernel-A217X.zip
+Kawa/packaging/boot.img
+Kawa/packaging/KawaKernel-A217X.zip
 arch/arm64/configs/.tmp_defconfig
