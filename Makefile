@@ -387,7 +387,6 @@ READELF		= $(CCACHE) llvm-readelf
 OBJSIZE		= $(CCACHE) llvm-size
 STRIP		= $(CCACHE) llvm-strip
 else
-CC		= $(CCACHE) $(CROSS_COMPILE)gcc
 LD		= $(CCACHE) $(CROSS_COMPILE)ld
 AR		= $(CCACHE) $(CROSS_COMPILE)ar
 NM		= $(CCACHE) $(CROSS_COMPILE)nm
