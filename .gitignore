@@ -8,4 +8,6 @@ Kawa/AIK-Linux/ramdisk-new.cpio.gz
 Kawa/AIK-Linux/image-new.img
 Kawa/packaging/boot.img
 Kawa/packaging/KawaKernel-A217X.zip
+Kawa/packaging/KawaKernel-A217X-Permissive.zip
+Kawa/packaging/KawaKernel-A217X-TWRP.zip
 arch/arm64/configs/.tmp_defconfig
