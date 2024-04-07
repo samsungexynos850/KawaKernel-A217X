@@ -1,9 +1,10 @@
 show_progress(0, 0);
 ui_print("------------------------");
-ui_print("Flashing KawaKernel v2.7");
+ui_print("Flashing KawaKernel v2.8");
 ui_print("------------------------");
 ui_print("                        ");
-ui_print("- Maintainer: @DozNaka -");
+ui_print("Maintainer: @DozNaka    ");
+ui_print("            @RiskyGUY22 ");
 ui_print("                        ");
 ui_print("------------------------");
 ui_print("                        ");
