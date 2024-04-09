@@ -66,6 +66,14 @@ UPDATE_DEPS()
   	fi
 }
 
+WIREGUARD_INTEGRATION()
+{
+	if [ -n "$CONFIG_WIREGUARD" ]; then
+		cat "source \"net/wireguard/Kconfig\"" >> net/Kconfig
+		cat "$(shell cd \"$(srctree)\" && ./scripts/fetch-latest-wireguard.sh)" >> scripts/Kbuild.include
+	fi
+}
+
 DETECT_TOOLCHAIN()
 {
 	if [ ! -e "$HOME/toolchains/proton-clang" ]; then
@@ -171,6 +179,7 @@ MAIN()
   	DETECT_TOOLCHAIN
   	CLEAN_PACKAGES
   	CLEAN_SOURCE
+	WIREGUARD_INTEGRATION
   	DEVICE_SELECTION
 	echo "***************************************************** "
 	echo "                                                     "
