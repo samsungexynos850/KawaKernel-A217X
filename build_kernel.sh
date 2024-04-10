@@ -11,9 +11,7 @@ KAWA_TWRP=KawaKernel-A217X-TWRP.zip
 export ARCH=arm64
 export PLATFORM_VERSION=12
 export ANDROID_MAJOR_VERSION=s
-export CROSS_COMPILE=/home/$USER/toolchains/proton-clang/bin/aarch64-linux-gnu-
-export CC=/home/$USER/toolchains/proton-clang/bin/clang
-export CLANG_TRIPLE=/home/$USER/toolchains/proton-clang/bin/aarch64-linux-gnueabi-
+export LLVM=1
 
 export DEFCONFIG=kawa_defconfig
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
@@ -21,6 +19,8 @@ export KAWA_LOC=$(pwd)/Kawa
 export KAWA_BOOT=$(pwd)/out/arch/$ARCH/boot
 export KAWA_DTS=$(pwd)/out/arch/$ARCH/boot/dts
 export PACKAGING=$(pwd)/Kawa/packaging
+export TARGET_KERNEL_CLANG_COMPILE=true
+export CLANG_VERSION="clang-r450784d"
 
 # Get date and time
 DATE=$(date +"%m-%d-%y")
@@ -76,11 +76,17 @@ WIREGUARD_INTEGRATION()
 
 DETECT_TOOLCHAIN()
 {
-	if [ ! -e "$HOME/toolchains/proton-clang" ]; then
-    	echo "Toolchain NOT detected: Downloading now..."
-    	sudo git clone --depth=1 https://github.com/kdrag0n/proton-clang ~/toolchains/proton-clang/ > /dev/null 2>&1
-    	echo "Toolchain was Successfully found!"
+	# Check if CLANG_DIR exists, if not try alternative paths
+	if [ -d "$HOME/toolchains/clang/$CLANG_VERSION" ]; then
+    	CLANG_DIR="$HOME/toolchains/clang/$CLANG_VERSION"
+	elif [ ! -d "$HOME/toolchains/clang/$CLANG_VERSION" ]; then
+		sudo git clone --depth=1 -b android-13.0.0_r75 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 ~/toolchains/clang/
+		CLANG_DIR="$HOME/toolchains/clang/$CLANG_VERSION"
+	else
+    	echo -e "${RED}Could not find the specified clang directory.${DEFAULT}"
+    	exit 1
 	fi
+
 }
 
 DEVICE_SELECTION()
@@ -110,8 +116,13 @@ BUILD_KERNEL()
 	echo "*****************************************************"
 	echo "           Building $PROJECT_NAME           "
 	echo "Building Kernel ..."
-	make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w .tmp_defconfig
-	make -j64 -C $(pwd) O=$(pwd)/out KCFLAGS=-w
+
+	PATH="$CLANG_DIR/bin:${PATH}"
+	export LD=/home/thomas/a21s/LineageOS/prebuilts/clang/host/linux-x86/clang-r450784d/bin/ld.lld
+	export ld=/home/thomas/a21s/LineageOS/prebuilts/clang/host/linux-x86/clang-r450784d/bin/ld.lld
+
+	make O=out ARCH=arm64 .tmp_defconfig
+	make -j$(nproc --all) O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LD=ld.lld LLVM=1 LLVM_IAS=1 Image || exit
 
 	# Check if kernel Image was created
 	if [ ! -e $KAWA_BOOT/Image ]; then
