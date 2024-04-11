@@ -193,7 +193,7 @@ static void wakeup_source_free(struct wakeup_source *ws)
  */
 void wakeup_source_destroy(struct wakeup_source *ws)
 {
-	if (!ws)
+	if (WARN_ON(!ws))
 		return;
 
 	wakeup_source_drop(ws);
