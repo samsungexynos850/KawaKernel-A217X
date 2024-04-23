@@ -20,7 +20,7 @@ export KAWA_BOOT=$(pwd)/out/arch/$ARCH/boot
 export KAWA_DTS=$(pwd)/out/arch/$ARCH/boot/dts
 export PACKAGING=$(pwd)/Kawa/packaging
 export TARGET_KERNEL_CLANG_COMPILE=true
-#export CLANG_VERSION="clang-r450784d"
+export CLANG_VERSION="clang-r450784d"
 
 # Get date and time
 DATE=$(date +"%m-%d-%y")
@@ -77,11 +77,11 @@ WIREGUARD_INTEGRATION()
 DETECT_TOOLCHAIN()
 {
 	# Check if CLANG_DIR exists, if not try alternative paths
-	if [ -d "$HOME/toolchains/proton-clang" ]; then
-    	CLANG_DIR="$HOME/toolchains/proton-clang"
-	elif [ ! -d "$HOME/toolchains/proton-clang" ]; then
-		sudo git clone --depth=1 https://github.com/kdrag0n/proton-clang ~/toolchains/proton-clang/
-		CLANG_DIR="$HOME/toolchains/proton-clang"
+	if [ -d "$HOME/toolchains/clang/$CLANG_VERSION" ]; then
+    	CLANG_DIR="$HOME/toolchains/clang/$CLANG_VERSION"
+	elif [ ! -d "$HOME/toolchains/clang/$CLANG_VERSION" ]; then
+		sudo git clone --depth=1 -b android-13.0.0_r75 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 ~/toolchains/clang/
+		CLANG_DIR="$HOME/toolchains/clang/$CLANG_VERSION"
 	else
     	echo -e "${RED}Could not find the specified clang directory.${DEFAULT}"
     	exit 1
@@ -118,6 +118,8 @@ BUILD_KERNEL()
 	echo "Building Kernel ..."
 
 	PATH="$CLANG_DIR/bin:${PATH}"
+	export LD=/home/thomas/a21s/LineageOS/prebuilts/clang/host/linux-x86/clang-r450784d/bin/ld.lld
+	export ld=/home/thomas/a21s/LineageOS/prebuilts/clang/host/linux-x86/clang-r450784d/bin/ld.lld
 
 	make O=out ARCH=arm64 .tmp_defconfig
 	make -j$(nproc --all) O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LD=ld.lld LLVM=1 LLVM_IAS=1 Image || exit
