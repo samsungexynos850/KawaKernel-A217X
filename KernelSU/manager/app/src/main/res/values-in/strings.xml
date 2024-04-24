@@ -57,22 +57,22 @@
     <string name="profile_template">Templat</string>
     <string name="profile_custom">Khusus</string>
     <string name="profile_name">Nama profil</string>
-    <string name="profile_namespace">Mount namespace</string>
+    <string name="profile_namespace">Mount Namespace</string>
     <string name="profile_namespace_inherited">Diwariskan</string>
     <string name="profile_namespace_global">Universal</string>
     <string name="profile_namespace_individual">Individual</string>
     <string name="profile_groups">Kelompok</string>
     <string name="profile_capabilities">Kemampuan</string>
     <string name="profile_selinux_context">Konteks SELinux</string>
-    <string name="profile_umount_modules">Umount Module</string>
+    <string name="profile_umount_modules">Umount Modul</string>
     <string name="failed_to_update_app_profile">Gagal membarui Profil pada %s</string>
-    <string name="settings_umount_modules_default">Umount Module secara bawaan</string>
-    <string name="settings_umount_modules_default_summary">Menggunakan \"Umount Module\" secara universal pada Profil aplikasi. Jika diaktifkan, akan menghapus semua modifikasi sistem untuk aplikasi yang tidak memiliki set Profil.</string>
+    <string name="settings_umount_modules_default">Melepas Modul secara bawaan</string>
+    <string name="settings_umount_modules_default_summary">Menggunakan \"Umount Modul\" secara universal pada Profil aplikasi. Jika diaktifkan, akan menghapus semua modifikasi sistem untuk aplikasi yang tidak memiliki set Profil.</string>
     <string name="profile_umount_modules_summary">Aktifkan opsi ini agar KernelSU dapat memulihkan kembali berkas termodifikasi oleh modul pada aplikasi ini.</string>
     <string name="profile_selinux_domain">Domain</string>
     <string name="profile_selinux_rules">Aturan</string>
     <string name="module_update">Membarui</string>
-    <string name="module_downloading">Mengunduh module: %s</string>
+    <string name="module_downloading">Mengunduh modul: %s</string>
     <string name="module_start_downloading">Mulai mengunduh: %s</string>
     <string name="new_version_available">Tersedia versi terbaru: %s, Klik untuk membarui</string>
     <string name="launch_app">Jalankan</string>
@@ -82,10 +82,10 @@
     <string name="require_kernel_version">Versi KernelSU %d terlalu rendah agar manajer berfungsi normal. Harap membarui ke versi %d atau di atasnya!</string>
     <string name="module_changelog">Catatan Perubahan</string>
     <string name="app_profile_template_import_success">Berhasil diimpor</string>
-    <string name="app_profile_export_to_clipboard">Ekspor ke clipboard</string>
+    <string name="app_profile_export_to_clipboard">Ekspor ke papan klip</string>
     <string name="app_profile_template_export_empty">Tidak ditemukan templat lokal untuk diekspor!</string>
     <string name="app_profile_template_id_exist">Id templat sudah ada!</string>
-    <string name="app_profile_import_from_clipboard">Impor dari clipboard</string>
+    <string name="app_profile_import_from_clipboard">Impor dari papan klip</string>
     <string name="module_changelog_failed">Gagal mengambil Changelog: %s</string>
     <string name="app_profile_template_name">Nama</string>
     <string name="app_profile_template_id_invalid">Id templat tidak valid</string>
@@ -100,7 +100,7 @@
     <string name="app_profile_template_save">Simpan</string>
     <string name="settings_profile_template_summary">Atur templat Profil yang lokal dan daring</string>
     <string name="app_profile_template_delete">Hapus</string>
-    <string name="app_profile_template_import_empty">Clipboard kosong!</string>
+    <string name="app_profile_template_import_empty">Papan klip kosong!</string>
     <string name="app_profile_template_view">Lihat Templat</string>
     <string name="app_profile_template_readonly">ReadOnly</string>
     <string name="enable_web_debugging">Pengawakutuan WebView</string>
@@ -108,7 +108,7 @@
     <string name="select_file_tip">%1$s image partisi terekomendasi</string>
     <string name="select_kmi">Pilih KMI</string>
     <string name="install_next">Selanjutnya</string>
-    <string name="install_inactive_slot_warning">Gawai akan **DIPAKSA** but ke slot nonaktif!
+    <string name="install_inactive_slot_warning">Gawai akan **DIPAKSA** untuk but ke slot nonaktif!
 \nHANYA gunakan setelah proses OTA selesai.
 \nLanjutkan?</string>
     <string name="direct_install">Instal Langsung (rekomendasi)</string>
@@ -119,5 +119,16 @@
     <string name="settings_check_update">Cek terbaru</string>
     <string name="settings_check_update_summary">Cek terbaru setiap membuka aplikasi</string>
     <string name="shrink_sparse_image">Meminimalkan sparse image</string>
-    <string name="shrink_sparse_image_message">Mengembalikan sparse image lokasi modul berada ke ukuran sebenarnya. Dapat menyebabkan modul bekerja abnormal, maka gunakan saat dibutuhkan saja (mis. untuk pencadangan)</string>
+    <string name="shrink_sparse_image_message">Mengembalikan sparse image, lokasi modul disimpan, ke ukuran sebenarnya. Dapat menyebabkan modul bekerja abnormal, maka gunakan saat dibutuhkan saja (mis. untuk pencadangan)</string>
+    <string name="settings_uninstall_permanent_message">Hapus permanen KernelSU (root dan modul).</string>
+    <string name="settings_uninstall_temporary">Hapus Temporer</string>
+    <string name="settings_restore_stock_image">Pulihkan Image Asal</string>
+    <string name="settings_uninstall">Hapus</string>
+    <string name="settings_uninstall_temporary_message">Hapus Temporer KernelSU, pulihkan ke kondisi asali setelah but berikutnya.</string>
+    <string name="settings_uninstall_permanent">Hapus Permanen</string>
+    <string name="settings_restore_stock_image_message">Pulihkan image bawaan ROM (jika cadangan tersedia), umumnya dilakukan sebelum OTA; jika ingin menghapus KernelSU, gunakan fungsi \"Hapus Permanen\".</string>
+    <string name="flash_success">Pemasangan Berhasil</string>
+    <string name="selected_lkm">LKM dipilih: %s</string>
+    <string name="flashing">Pasang</string>
+    <string name="flash_failed">Pemasangan Gagal</string>
 </resources>
