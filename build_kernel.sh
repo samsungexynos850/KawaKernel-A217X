@@ -20,6 +20,7 @@ export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
 export KAWA_LOC=$(pwd)/Kawa
 export KAWA_BOOT=$(pwd)/out/arch/$ARCH/boot
 export KAWA_DTS=$(pwd)/out/arch/$ARCH/boot/dts
+export ANYKERNEL=$(pwd)/Kawa/AnyKernel3
 export PACKAGING=$(pwd)/Kawa/packaging
 
 # Get date and time
@@ -34,7 +35,7 @@ CLEAN_PACKAGES()
 	fi
 
 	# Clean previous builds
-	rm -rf $KAWA_LOC/packaging/boot.img
+	rm -rf $KAWA_LOC/AnyKernel3/Image
 	rm -rf $KAWA_LOC/packaging/*.zip
 	rm -rf $KAWA_BOOT/Image
 	rm -rf $DEFCONFIG_LOC/.tmp_defconfig
@@ -139,20 +140,19 @@ AIK-Linux()
     $KAWA_LOC/mkdtimg cfg_create $KAWA_DTS/dtbo.img $KAWA_LOC/dtbo.cfg -d $KAWA_DTS/samsung/a21s
 
 	# Build bootable image
-	$KAWA_LOC/AIK-Linux/unpackimg.sh
-    cp -f $KAWA_BOOT/Image $KAWA_LOC/AIK-Linux/split_img/boot.img-kernel
-    cp -f $KAWA_DTS/dtb.img $KAWA_LOC/AIK-Linux/split_img/boot.img-dtb
-	$KAWA_LOC/AIK-Linux/repackimg.sh
-	cp -f $KAWA_LOC/AIK-Linux/image-new.img $PACKAGING/boot.img
-	$KAWA_LOC/AIK-Linux/cleanup.sh
-
+	cp -f $KAWA_BOOT/Image $ANYKERNEL
 
 	# Build packaging
-	cd $PACKAGING
+	cd $ANYKERNEL
 	zip -r $ZIPNAME *
 	chmod 0777 $ZIPNAME
+	mv $ZIPNAME $PACKAGING
 	# Change back into kernel source directory
 	cd ../../
+
+	if [ -e "$ANYKERNEL/Image" ]; then
+		rm -rf $ANYKERNEL/Image
+	fi
 	fi
 }
 
