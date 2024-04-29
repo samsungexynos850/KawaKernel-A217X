@@ -1,10 +1,10 @@
 {
   "kernel": {
     "name": "Kawa Kernel",
-    "version": "v2.9-Permissive",
-    "link": "https://github.com/samsungexynos850/KawaKernel-A217X/releases/download/KawaKernel-v2.9/KawaKernel-A217X-Permissive.zip",
+    "version": "Stable-Permissive",
+    "link": "https://github.com/samsungexynos850/KawaKernel-A217X/releases/download/KawaKernel-Stable/KawaKernel-A217X-Permissive.zip",
     "changelog_url": "https://raw.githubusercontent.com/samsungexynos850/KawaKernel-A217X/A12-stable/tools/OTA/kawa-changelog.txt",
-    "date": "2024-04-25",
+    "date": "2024-04-29",
     "sha1": "e64b680dd1b2b9e45ca39acf3fa72f34f9c4139a"
   },
   "support": {
