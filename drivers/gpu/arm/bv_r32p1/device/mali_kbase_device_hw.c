@@ -27,6 +27,10 @@
 #include <mali_kbase_reset_gpu.h>
 #include <mmu/mali_kbase_mmu.h>
 
+/* Merge cache flush commands */
+#define GPU_COMMAND_FLUSH_CACHE_MERGE(cmd1, cmd2)                              \
+	((cmd1) > (cmd2) ? (cmd1) : (cmd2))
+
 #if !IS_ENABLED(CONFIG_MALI_NO_MALI)
 void kbase_reg_write(struct kbase_device *kbdev, u32 offset, u32 value)
 {
