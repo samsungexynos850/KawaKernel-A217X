@@ -42,6 +42,19 @@ struct base_mem_handle {
 
 #define BASE_MAX_COHERENT_GROUPS 16
 
+// Define LOCAL_ASSERT
+#if defined(CDBG_ASSERT)
+#define LOCAL_ASSERT CDBG_ASSERT
+#elif defined(KBASE_DEBUG_ASSERT)
+#define LOCAL_ASSERT KBASE_DEBUG_ASSERT
+#else
+#if defined(__KERNEL__)
+#error assert macro not defined!
+#else
+#define LOCAL_ASSERT(...)	((void)#__VA_ARGS__)
+#endif
+#endif
+
 #if defined(PAGE_MASK) && defined(PAGE_SHIFT)
 #define LOCAL_PAGE_SHIFT PAGE_SHIFT
 #define LOCAL_PAGE_LSB ~PAGE_MASK
@@ -752,5 +765,44 @@ struct base_gpu_props {
  * layers, since each cube map in the array will have 6 faces.
  */
 #define BASE_MEM_ALIAS_MAX_ENTS ((size_t)24576)
+
+static __inline__ int base_mem_group_id_get(base_mem_alloc_flags flags)
+{
+	LOCAL_ASSERT((flags & ~BASE_MEM_FLAGS_INPUT_MASK) == 0);
+	return (int)((flags & BASE_MEM_GROUP_ID_MASK) >>
+			BASEP_MEM_GROUP_ID_SHIFT);
+}
+
+static __inline__ base_mem_alloc_flags base_mem_group_id_set(int id)
+{
+	if ((id < 0) || (id >= BASE_MEM_GROUP_COUNT)) {
+		/* Set to default value when id is out of range. */
+		id = BASE_MEM_GROUP_DEFAULT;
+	}
+
+	return ((base_mem_alloc_flags)id << BASEP_MEM_GROUP_ID_SHIFT) &
+		BASE_MEM_GROUP_ID_MASK;
+}
+
+
+/**
+ * base_context_mmu_group_id_get - Decode a memory group ID from
+ *                                 base_context_create_flags
+ *
+ * Memory allocated for GPU page tables will come from the returned group.
+ *
+ * @flags: Bitmask of flags to pass to base_context_init.
+ *
+ * Return: Physical memory group ID. Valid range is 0..(BASE_MEM_GROUP_COUNT-1).
+ */
+static __inline__ int base_context_mmu_group_id_get(
+	base_context_create_flags const flags)
+{
+	LOCAL_ASSERT(flags == (flags & BASEP_CONTEXT_CREATE_ALLOWED_FLAGS));
+	return (int)((flags & BASEP_CONTEXT_MMU_GROUP_ID_MASK) >>
+			BASEP_CONTEXT_MMU_GROUP_ID_SHIFT);
+}
+
+
 
 #endif /* _UAPI_BASE_KERNEL_H_ */
