@@ -2,7 +2,7 @@ Changelog:
 
 KawaKernel:
 - KernelSU v0.9.3
-- Builds with AOSP
-- AnyKernel3 Used
-- OTA Kernel updating enabled through franko kernel manager
-- **BIG: Updated Bitfrost drivers from r32 to r34** 
+- Backend changes
+- Proton clang used
+- LLVM tools used to compile
+- Changed name to versions
