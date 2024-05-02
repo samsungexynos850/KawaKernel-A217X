@@ -12,7 +12,7 @@ export ARCH=arm64
 export PLATFORM_VERSION=12
 export ANDROID_MAJOR_VERSION=s
 
-export PATH=/home/thomas/toolchains/proton-clang/bin/:$PATH
+export PATH=/home/thomas/a21s/LeafOS/prebuilts/clang/host/linux-x86/clang-r510928/bin/:$PATH
 
 export LLVM=1
 export LLVM_IAS=1
