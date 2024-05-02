@@ -1,25 +1,28 @@
 #!/bin/bash
-# Build script for KawaKernel
+# Build script for KawaKernel - Made by @RiskyGU22
 
-# Set Project and Zip names
+# Set Project and Version name
 PROJECT_NAME="Kawa Kernel"
-KAWA_ENFORCING=KawaKernel-A217X.zip
-KAWA_PERMISSIVE=KawaKernel-A217X-Permissive.zip
+VERSION=30
+
+# Define variables for packaging names
+KAWA_ENFORCING=KawaKernel-A217X_$VERSION.zip
+KAWA_PERMISSIVE=KawaKernel-A217X-Permissive_$VERSION.zip
 KAWA_TWRP=KawaKernel-A217X-TWRP.zip
 
-# Export variables
+# Export variables used to compile
 export ARCH=arm64
 export PLATFORM_VERSION=12
 export ANDROID_MAJOR_VERSION=s
 
-export PATH=/home/thomas/a21s/LeafOS/prebuilts/clang/host/linux-x86/clang-r510928/bin/:$PATH
-
+# Add toolchain location to path
+export PATH=/home/thomas/toolchains/proton-clang/bin/:$PATH
 export LLVM=1
 export LLVM_IAS=1
 export CLANG_TRIPLE=aarch64-linux-gnu-
 export CROSS_COMPILE=aarch64-linux-gnu-
 
-
+# Export Variables related to Kawa's packaging
 export DEFCONFIG=kawa_defconfig
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
 export KAWA_LOC=$(pwd)/Kawa
@@ -35,6 +38,7 @@ BUILD_START=$(date +"%s")
 ################### Executable functions #######################
 CLEAN_PACKAGES()
 {
+	# Check for the existence of an out directory
 	if [ ! -e "out" ]; then
 		mkdir out
 	fi
@@ -49,6 +53,7 @@ CLEAN_PACKAGES()
 
 CLEAN_SOURCE()
 {
+	# Option to Clean source
   	read -p "Clean source? [Y] (Y/N): " clean_confirm
   	if [[ $clean_confirm == [yY] || $clean_confirm == [yY][eE][sS] ]]; then
     	echo "Cleaning source ..."
@@ -72,16 +77,9 @@ UPDATE_DEPS()
   	fi
 }
 
-WIREGUARD_INTEGRATION()
-{
-	if [ -n "$CONFIG_WIREGUARD" ]; then
-		cat "source \"net/wireguard/Kconfig\"" >> net/Kconfig
-		cat "$(shell cd \"$(srctree)\" && ./scripts/fetch-latest-wireguard.sh)" >> scripts/Kbuild.include
-	fi
-}
-
 DETECT_TOOLCHAIN()
 {
+	# Download toolchain
 	if [ ! -e "$HOME/toolchains/proton-clang" ]; then
     	echo "Toolchain NOT detected: Downloading now..."
     	sudo git clone --depth=1 https://github.com/kdrag0n/proton-clang ~/toolchains/proton-clang/ > /dev/null 2>&1
@@ -129,9 +127,9 @@ BUILD_KERNEL()
 }
 
 
-AIK-Linux()
+AnyKernel3()
 {
-	# Building boot image with AIK-Linux
+	# Build packaging with AnyKernel3
 	if [ -e "$KAWA_BOOT/Image" ]; then
 
 	echo -e "*****************************************************"
@@ -184,7 +182,6 @@ MAIN()
   	DETECT_TOOLCHAIN
   	CLEAN_PACKAGES
   	CLEAN_SOURCE
-	WIREGUARD_INTEGRATION
   	DEVICE_SELECTION
 	echo "***************************************************** "
 	echo "                                                     "
@@ -196,7 +193,7 @@ MAIN()
 	echo "                                                     "
 	BUILD_KERNEL
 	echo " "
-	AIK-Linux
+	AnyKernel3
 	echo " "
 	DISPLAY_ELAPSED_TIME
 	echo " "

@@ -42,26 +42,26 @@
  * Return: Pointer to allocated page, or NULL if allocation failed.
  */
 static struct page *kbase_native_mgm_alloc(
-	struct memory_group_manager_device *mgm_dev, int group_id,
-	gfp_t gfp_mask, unsigned int order)
+    struct memory_group_manager_device *mgm_dev, unsigned int group_id,
+    gfp_t gfp_mask, unsigned int order)
 {
-	/*
-	 * Check that the base and the mgm defines, from separate header files,
-	 * for the max number of memory groups are compatible.
-	 */
-	BUILD_BUG_ON(BASE_MEM_GROUP_COUNT != MEMORY_GROUP_MANAGER_NR_GROUPS);
-	/*
-	 * Check that the mask used for storing the memory group ID is big
-	 * enough for the largest possible memory group ID.
-	 */
-	BUILD_BUG_ON((BASEP_CONTEXT_MMU_GROUP_ID_MASK
-				>> BASEP_CONTEXT_MMU_GROUP_ID_SHIFT)
-			< (BASE_MEM_GROUP_COUNT - 1));
+    /*
+     * Check that the base and the mgm defines, from separate header files,
+     * for the max number of memory groups are compatible.
+     */
+    BUILD_BUG_ON(BASE_MEM_GROUP_COUNT != MEMORY_GROUP_MANAGER_NR_GROUPS);
+    /*
+     * Check that the mask used for storing the memory group ID is big
+     * enough for the largest possible memory group ID.
+     */
+    BUILD_BUG_ON((BASEP_CONTEXT_MMU_GROUP_ID_MASK
+                >> BASEP_CONTEXT_MMU_GROUP_ID_SHIFT)
+            < (BASE_MEM_GROUP_COUNT - 1));
 
-	CSTD_UNUSED(mgm_dev);
-	CSTD_UNUSED(group_id);
+    CSTD_UNUSED(mgm_dev);
+    CSTD_UNUSED(group_id);
 
-	return alloc_pages(gfp_mask, order);
+    return alloc_pages(gfp_mask, order);
 }
 
 /**
@@ -79,7 +79,7 @@ static struct page *kbase_native_mgm_alloc(
  * Delegates all memory freeing requests to the kernel's __free_pages function.
  */
 static void kbase_native_mgm_free(struct memory_group_manager_device *mgm_dev,
-	int group_id, struct page *page, unsigned int order)
+	unsigned int group_id, struct page *page, unsigned int order)
 {
 	CSTD_UNUSED(mgm_dev);
 	CSTD_UNUSED(group_id);
@@ -105,7 +105,7 @@ static void kbase_native_mgm_free(struct memory_group_manager_device *mgm_dev,
  *         entry was successfully installed.
  */
 static vm_fault_t kbase_native_mgm_vmf_insert_pfn_prot(
-		struct memory_group_manager_device *mgm_dev, int group_id,
+		struct memory_group_manager_device *mgm_dev, unsigned int group_id,
 		struct vm_area_struct *vma, unsigned long addr,
 		unsigned long pfn, pgprot_t pgprot)
 {
@@ -131,7 +131,7 @@ static vm_fault_t kbase_native_mgm_vmf_insert_pfn_prot(
  */
 static u64
 kbase_native_mgm_update_gpu_pte(struct memory_group_manager_device *mgm_dev,
-			      int group_id, int mmu_level, u64 pte)
+			      unsigned int group_id, int mmu_level, u64 pte)
 {
 	CSTD_UNUSED(mgm_dev);
 	CSTD_UNUSED(group_id);
@@ -155,7 +155,7 @@ kbase_native_mgm_update_gpu_pte(struct memory_group_manager_device *mgm_dev,
  * Return: A GPU page table entry to be stored in a page table.
  */
 static u64 kbase_native_mgm_pte_to_original_pte(struct memory_group_manager_device *mgm_dev,
-						int group_id, int mmu_level, u64 pte)
+						unsigned int group_id, int mmu_level, u64 pte)
 {
 	CSTD_UNUSED(mgm_dev);
 	CSTD_UNUSED(group_id);
