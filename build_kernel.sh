@@ -16,7 +16,7 @@ export PLATFORM_VERSION=12
 export ANDROID_MAJOR_VERSION=s
 
 # Add toolchain location to path
-export PATH=/home/thomas/toolchains/proton-clang/bin/:$PATH
+export PATH=/home/$USER/toolchains/proton-clang/bin/:$PATH
 export LLVM=1
 export LLVM_IAS=1
 export CLANG_TRIPLE=aarch64-linux-gnu-
