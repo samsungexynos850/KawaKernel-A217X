@@ -11,9 +11,14 @@ KAWA_TWRP=KawaKernel-A217X-TWRP.zip
 export ARCH=arm64
 export PLATFORM_VERSION=12
 export ANDROID_MAJOR_VERSION=s
-export CROSS_COMPILE=/home/$USER/toolchains/proton-clang/bin/aarch64-linux-gnu-
-export CC=/home/$USER/toolchains/proton-clang/bin/clang
-export CLANG_TRIPLE=/home/$USER/toolchains/proton-clang/bin/aarch64-linux-gnueabi-
+
+export PATH=/home/thomas/toolchains/proton-clang/bin/:$PATH
+
+export LLVM=1
+export LLVM_IAS=1
+export CLANG_TRIPLE=aarch64-linux-gnu-
+export CROSS_COMPILE=aarch64-linux-gnu-
+
 
 export DEFCONFIG=kawa_defconfig
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
