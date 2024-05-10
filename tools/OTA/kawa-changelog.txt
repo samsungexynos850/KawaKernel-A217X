@@ -1,8 +1,7 @@
 Changelog:
 
 KawaKernel:
-- KernelSU v0.9.3
-- Backend changes
-- Proton clang used
-- LLVM tools used to compile
-- Changed name to versions
+- KernelSU v0.9.4
+- Upstreamed to latets q branch
+- Linux Version: 4.19.275
+- Added building for a12s
