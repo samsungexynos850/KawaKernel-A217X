@@ -4,7 +4,7 @@
 ### AnyKernel setup
 # global properties
 properties() { '
-kernel.string=KawaKernel by @thomasturner36
+kernel.string=KawaKernel v3.1 by @thomasturner36
 do.devicecheck=0
 do.modules=0
 do.systemless=1
