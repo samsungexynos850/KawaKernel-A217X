@@ -434,7 +434,6 @@ void kbase_phy_alloc_mapping_put(struct kbase_context *kctx,
  */
 u32 kbase_get_cache_line_alignment(struct kbase_device *kbdev);
 
-#if (KERNEL_VERSION(4, 20, 0) > LINUX_VERSION_CODE)
 static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
 			unsigned long addr, unsigned long pfn, pgprot_t pgprot)
 {
@@ -458,7 +457,6 @@ static inline vm_fault_t vmf_insert_pfn_prot(struct vm_area_struct *vma,
 
 	return VM_FAULT_NOPAGE;
 }
-#endif
 
 /**
  * kbase_mem_get_process_mmap_lock - Return the mmap lock for the current process
