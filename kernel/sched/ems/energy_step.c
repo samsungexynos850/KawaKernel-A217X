@@ -140,7 +140,7 @@ static void esg_update_freq_range(struct cpufreq_policy *policy)
 	new_min_idx = cpufreq_frequency_table_target(
 				policy, new_min, CPUFREQ_RELATION_L);
 	new_max_idx = cpufreq_frequency_table_target(
-				policy, new_max, CPUFREQ_RELATION_H);
+				policy, new_max, CPUFREQ_RELATION_C);
 
 	new_min = esg_policy->policy->freq_table[new_min_idx].frequency;
 	new_max = esg_policy->policy->freq_table[new_max_idx].frequency;
@@ -435,7 +435,7 @@ static struct esgov_policy *esgov_policy_alloc(struct cpufreq_policy *policy)
 		goto free_allocation;
 
 	esg_update_step(esg_policy, val);
-	esg_policy->rate_delay_ns = 4 * NSEC_PER_MSEC;
+	esg_policy->rate_delay_ns = 5 * NSEC_PER_MSEC;
 
 	/* Init Sysfs */
 	if (kobject_init_and_add(&esg_policy->kobj, &ktype_esg, esg_kobj,

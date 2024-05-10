@@ -314,6 +314,7 @@ static int exynos_cpufreq_driver_init(struct cpufreq_policy *policy)
 	policy->cur = get_freq(domain);
 	policy->cpuinfo.transition_latency = TRANSITION_LATENCY;
 	policy->dvfs_possible_from_any_cpu = true;
+	policy->iowait_boost_enable = true;
 	cpumask_copy(policy->cpus, &domain->cpus);
 
 	pr_info("CPUFREQ domain%d registered\n", domain->id);
@@ -366,11 +367,9 @@ static int __exynos_cpufreq_target(struct cpufreq_policy *policy,
 		goto out;
 	}
 
-	if (domain->old != get_freq(domain)) {
+	if (domain->old != get_freq(domain))
 		pr_err("oops, inconsistency between domain->old:%d, real clk:%d\n",
 			domain->old, get_freq(domain));
-		BUG_ON(1);
-	}
 
 	resolve_freq = exynos_cpufreq_resolve(policy, target_freq);
 	if (target_freq != resolve_freq)
@@ -1068,6 +1067,8 @@ void sec_bootstat_get_cpuinfo(int *freq, int *online)
 /*********************************************************************
  *                  INITIALIZE EXYNOS CPUFREQ DRIVER                 *
  *********************************************************************/
+
+
 static void print_domain_info(struct exynos_cpufreq_domain *domain)
 {
 	int i;
@@ -1373,6 +1374,7 @@ static int init_dm(struct exynos_cpufreq_domain *domain,
 	return register_exynos_dm_freq_scaler(domain->dm_type, dm_scaler);
 }
 
+
 /*Underclocking little cores to 130MHz*/
 unsigned long arg_cpu_min_c1 = 130000;
 static int __init cpufreq_read_cpu_min_c1(char *cpu_min_c1) /*integer remains in memory after function call*/
@@ -1408,8 +1410,8 @@ static __init int cpufreq_read_cpu_min_c2(char *cpu_min_c2)
 }
 __setup("cpu_min_c2=", cpufreq_read_cpu_min_c2);
 
-/*Underclocking gpu to 377MHz*/
-unsigned long arg_gpu_min = 377000;
+/*Underclocking gpu to 100MHz*/
+unsigned long arg_gpu_min = 1000000;
 
 static __init int cpufreq_read_gpu_min(char *gpu_min)
 {
@@ -1517,6 +1519,7 @@ static __init int cpufreq_read_mif_max(char *mif_max)
 }
 __setup("mif_max=", cpufreq_read_mif_max);
 
+
 static __init void init_slack_timer(struct exynos_cpufreq_domain *domain,
 		struct device_node *dn)
 {
@@ -1569,7 +1572,8 @@ static __init int init_domain(struct exynos_cpufreq_domain *domain,
 	if (!of_property_read_u32(dn, "min-freq", &val))
 		domain->min_freq = max(domain->min_freq, val);
 
-/*id==0 for little  id==1 for big*/
+
+ /*id==0 for little  id==1 for big*/
 
 	if (domain->id == 0) {
 		domain->max_freq = arg_cpu_max_c1;
@@ -1578,6 +1582,13 @@ static __init int init_domain(struct exynos_cpufreq_domain *domain,
 		domain->max_freq = arg_cpu_max_c2;
 		domain->min_freq = arg_cpu_min_c2;
 	}
+
+	/* Default QoS for user */
+	//if (!of_property_read_u32(dn, "user-default-qos", &val))
+	//	domain->user_default_qos = val;
+
+
+
 
 	/* If this domain has boost freq, change max */
 	val = exynos_pstate_get_boost_freq(cpumask_first(&domain->cpus));

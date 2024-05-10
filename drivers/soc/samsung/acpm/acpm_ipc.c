@@ -29,9 +29,9 @@
 static struct acpm_ipc_info *acpm_ipc;
 static struct workqueue_struct *update_log_wq;
 static struct acpm_debug_info *acpm_debug;
-static bool is_acpm_stop_log = false;
+static bool is_acpm_stop_log = true;
 static bool acpm_stop_log_req = false;
-struct acpm_framework *acpm_initdata;
+volatile struct acpm_framework *acpm_initdata;
 void __iomem *acpm_srambase;
 static u32 acpm_period = APM_PERITIMER_NS_PERIOD;
 

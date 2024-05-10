@@ -12,8 +12,4 @@ always    := $(DTB_LIST)
 
 dtbs: $(addprefix $(obj)/, $(DTB_LIST))
 
-clean-files := *.dtb.reverse.dts*
-clean-files := *.dtb.dtout*
-
-clean-files := *.dtbo.reverse.dts*
-clean-files := *.dtbo.dtout*
+clean-files := *.dtb*

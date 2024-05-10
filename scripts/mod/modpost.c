@@ -30,7 +30,7 @@ static int all_versions = 0;
 /* If we are modposting external module set to 1 */
 static int external_module = 0;
 /* Warn about section mismatch in vmlinux if set to 1 */
-static int vmlinux_section_warnings = 1;
+static int vmlinux_section_warnings = 0;
 /* Only warn about unresolved symbols */
 static int warn_unresolved = 0;
 /* How a symbol is exported */
@@ -2553,6 +2553,12 @@ int main(int argc, char **argv)
 	if (dump_write)
 		write_dump(dump_write);
 	if (sec_mismatch_count) {
+		if (!sec_mismatch_verbose) {
+			warn("modpost: Found %d section mismatch(es).\n"
+			     "To see full details build your kernel with:\n"
+			     "'make CONFIG_DEBUG_SECTION_MISMATCH=y'\n",
+			     sec_mismatch_count);
+		}
 		if (sec_mismatch_fatal) {
 			fatal("modpost: Section mismatches detected.\n"
 			      "Set CONFIG_SECTION_MISMATCH_WARN_ONLY=y to allow them.\n");
