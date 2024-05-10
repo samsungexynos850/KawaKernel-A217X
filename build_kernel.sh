@@ -3,7 +3,7 @@
 
 # Set Project and Version name
 PROJECT_NAME="Kawa Kernel"
-VERSION=v3.0
+VERSION=v3.1
 
 # Define variables for packaging names
 KAWA_ENFORCING=KawaKernel-A217X_$VERSION.zip
