@@ -635,7 +635,7 @@ typedef struct {
 	unsigned int asoc;
 } battery_health_condition;
 
-inline void battery_wakeup_source_init(struct device *dev, struct wakeup_source **ws, const char *name);
+void battery_wakeup_source_init(struct device *dev, struct wakeup_source **ws, const char *name);
 
 static inline struct power_supply *get_power_supply_by_name(char *name)
 {
