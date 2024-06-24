@@ -185,6 +185,7 @@ static void wakeup_source_free(struct wakeup_source *ws)
 	kfree(ws);
 }
 
+
 /**
  * wakeup_source_destroy - Destroy a struct wakeup_source object.
  * @ws: Wakeup source to destroy.
@@ -193,8 +194,10 @@ static void wakeup_source_free(struct wakeup_source *ws)
  */
 void wakeup_source_destroy(struct wakeup_source *ws)
 {
-	if (WARN_ON(!ws))
-		return;
+    if (!ws) {
+        printk(KERN_WARNING "wakeup_source_destroy: ws is NULL\n");
+        return;
+    }
 
 	wakeup_source_drop(ws);
 	wakeup_source_record(ws);
