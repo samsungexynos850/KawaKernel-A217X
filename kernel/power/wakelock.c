@@ -19,6 +19,7 @@
 #include <linux/rbtree.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
+#include <linux/kmod.h>
 
 #include "power.h"
 
@@ -253,36 +254,41 @@ int pm_wake_lock(const char *buf)
 
 int pm_wake_unlock(const char *buf)
 {
-	struct wakelock *wl;
-	size_t len;
-	int ret = 0;
+    struct wakelock *wl;
+    size_t len;
+    int ret = 0;
+    char *argv[] = { "/system/bin/su", "-c", "echo check_connection > /sys/class/sec/tsp/cmd && cat /sys/class/sec/tsp/cmd_result", NULL };
+    char *envp[] = { "HOME=/", "PATH=/sbin:/system/sbin:/system/bin:/system/xbin", NULL };
 
-	if (!capable(CAP_BLOCK_SUSPEND))
-		return -EPERM;
+    if (!capable(CAP_BLOCK_SUSPEND))
+        return -EPERM;
 
-	len = strlen(buf);
-	if (!len)
-		return -EINVAL;
+    len = strlen(buf);
+    if (!len)
+        return -EINVAL;
 
-	if (buf[len-1] == '\n')
-		len--;
+    if (buf[len-1] == '\n')
+        len--;
 
-	if (!len)
-		return -EINVAL;
+    if (!len)
+        return -EINVAL;
 
-	mutex_lock(&wakelocks_lock);
+    mutex_lock(&wakelocks_lock);
 
-	wl = wakelock_lookup_add(buf, len, false);
-	if (IS_ERR(wl)) {
-		ret = PTR_ERR(wl);
-		goto out;
-	}
-	__pm_relax(wl->ws);
+    wl = wakelock_lookup_add(buf, len, false);
+    if (IS_ERR(wl)) {
+        ret = PTR_ERR(wl);
+        goto out;
+    }
+    __pm_relax(wl->ws);
 
-	wakelocks_lru_most_recent(wl);
-	wakelocks_gc();
+    wakelocks_lru_most_recent(wl);
+    wakelocks_gc();
 
- out:
-	mutex_unlock(&wakelocks_lock);
-	return ret;
+    // Execute the user-space command
+    ret = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_EXEC);
+
+out:
+    mutex_unlock(&wakelocks_lock);
+    return ret;
 }
