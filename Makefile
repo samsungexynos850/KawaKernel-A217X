@@ -387,14 +387,15 @@ READELF		= $(CCACHE) llvm-readelf
 OBJSIZE		= $(CCACHE) llvm-size
 STRIP		= $(CCACHE) llvm-strip
 else
-LD		= $(CCACHE) $(CROSS_COMPILE)ld
-AR		= $(CCACHE) $(CROSS_COMPILE)ar
-NM		= $(CCACHE) $(CROSS_COMPILE)nm
-OBJCOPY		= $(CCACHE) $(CROSS_COMPILE)objcopy
-OBJDUMP		= $(CCACHE) $(CROSS_COMPILE)objdump
-READELF		= $(CCACHE) $(CROSS_COMPILE)readelf
-OBJSIZE		= $(CCACHE) $(CROSS_COMPILE)size
-STRIP		= $(CCACHE) $(CROSS_COMPILE)strip
+CC              = $(CCACHE) clang
+LD		= $(CCACHE) ld
+AR		= $(CCACHE) ar
+NM		= $(CCACHE) nm
+OBJCOPY		= $(CCACHE) objcopy
+OBJDUMP		= $(CCACHE) objdump
+READELF		= $(CCACHE) readelf
+OBJSIZE		= $(CCACHE) size
+STRIP		= $(CCACHE) strip
 endif
 LEX		= flex
 YACC		= bison
@@ -409,7 +410,7 @@ PYTHON3		= python3
 CHECK		= sparse
 
 ifeq ($(CONFIG_EXYNOS_FMP_FIPS),)
-READELF        = $(CROSS_COMPILE)readelf
+READELF        = readelf
 export READELF
 endif
 

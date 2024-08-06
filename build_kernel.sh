@@ -15,13 +15,6 @@ export ARCH=arm64
 export PLATFORM_VERSION=12
 export ANDROID_MAJOR_VERSION=s
 
-# Add toolchain location to path
-export PATH=/home/$USER/toolchains/proton-clang/bin/:$PATH
-export LLVM=1
-export LLVM_IAS=1
-export CLANG_TRIPLE=aarch64-linux-gnu-
-export CROSS_COMPILE=aarch64-linux-gnu-
-
 # Export Variables related to Kawa's packaging
 export DEFCONFIG=kawa_defconfig
 export DEFCONFIG_LOC=$(pwd)/arch/$ARCH/configs
@@ -30,10 +23,15 @@ export KAWA_BOOT=$(pwd)/out/arch/$ARCH/boot
 export KAWA_DTS=$(pwd)/out/arch/$ARCH/boot/dts
 export ANYKERNEL=$(pwd)/Kawa/AnyKernel3
 export PACKAGING=$(pwd)/Kawa/packaging
+export OS=0
 
 # Get date and time
 DATE=$(date +"%m-%d-%y")
 BUILD_START=$(date +"%s")
+
+# Check KernelSU is synced
+git submodule update --init --recursive > /dev/null
+echo "Updating KernelSU..."
 
 ################### Executable functions #######################
 CLEAN_PACKAGES()
@@ -67,23 +65,47 @@ CLEAN_SOURCE()
 UPDATE_DEPS()
 {
   	if hostnamectl | grep -q 'Ubuntu'; then
-    	echo "Ubuntu machine detected: missing dependencies will be installed..."
+    	echo "Ubuntu OS: missing dependencies will be installed..."
+
+		OS=0 # 0 Will be equal to Ubuntu
+		export PATH=/home/$USER/toolchains/proton-clang/bin/:$PATH
+		export CLANG_TRIPLE=aarch64-linux-gnu-
+		export CROSS_COMPILE=aarch64-linux-gnu-
+		export LLVM=1
+		export LLVM_IAS=1
+
     	sudo apt update > /dev/null 2>&1
     	sudo apt upgrade -y > /dev/null 2>&1
-    	sudo apt-get install git fakeroot build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison python3 python-is-python3 -y > /dev/null 2>&1
+    	sudo apt-get install git fakeroot ccache build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison python3 python-is-python3 -y > /dev/null 2>&1
     	echo "Dependencies Installed Successfully!"
+	elif hostnamectl | grep -q 'Arch'; then
+		echo "Arch Linux OS detected: missing dependencies will be installed..."
+
+		OS=1 # 1 Will be equal to Arch
+		export PATH=/home/$USER/toolchains/gcc-4.9/clang/host/linux-x86/clang-r353983c/bin/:$PATH
+		export PATH=/home/$USER/toolchains/gcc-4.9/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/:$PATH	
+		export CLANG_TRIPLE=aarch64-linux-android-
+		export CROSS_COMPILE=aarch64-linux-android-
+		export LLVM=0
+		export LLVM_IAS=0
+
+		sudo pacman -Syuq --noconfirm > /dev/null && sudo pacman -Syq --noconfirm bc cpio zip gettext git libelf pahole perl python tar xz graphviz imagemagick python-sphinx python-yaml texlive-latexextra flex bison ccache > /dev/null
   	else
-    	echo "Ubuntu machine NOT detected - *DEPENDENCIES will NOT be installed*"
+    	echo "Operating System NOT yet supported - Recommended to turn back now!"
   	fi
 }
 
 DETECT_TOOLCHAIN()
 {
 	# Download toolchain
-	if [ ! -e "$HOME/toolchains/proton-clang" ]; then
-    	echo "Toolchain NOT detected: Downloading now..."
+	if [ ! -e "$HOME/toolchains/proton-clang" ] && [ OS=0 ]; then
+    	echo "Toolchain NOT detected: Downloading proton-clang now..."
     	sudo git clone --depth=1 https://github.com/kdrag0n/proton-clang ~/toolchains/proton-clang/ > /dev/null 2>&1
     	echo "Toolchain was Successfully found!"
+	elif [ ! -e "$HOME/toolchains/gcc-4.9" ] && [ OS=1 ]; then
+		echo "Toolchain NOT detected: Downloading gcc-4.9 now..."
+		sudo git clone --depth=1 https://github.com/samsungexynos850/kawa-toolchain ~/toolchains/gcc-4.9/ > /dev/null 2>&1
+		echo "Toolchain was Successfully found!"
 	fi
 }
 
