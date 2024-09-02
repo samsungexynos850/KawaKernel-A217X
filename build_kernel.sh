@@ -64,7 +64,7 @@ CLEAN_SOURCE()
 
 UPDATE_DEPS()
 {
-  	if hostnamectl | grep -q 'Ubuntu'; then
+  	if cat /etc/*-release | grep -q 'Ubuntu'; then
     	echo "Ubuntu OS: missing dependencies will be installed..."
 
 		OS=0 # 0 Will be equal to Ubuntu
@@ -78,7 +78,7 @@ UPDATE_DEPS()
     	sudo apt upgrade -y > /dev/null 2>&1
     	sudo apt-get install git fakeroot ccache build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison python3 python-is-python3 -y > /dev/null 2>&1
     	echo "Dependencies Installed Successfully!"
-	elif hostnamectl | grep -q 'Arch'; then
+	elif cat /etc/*-release | grep -q 'Arch'; then
 		echo "Arch Linux OS detected: missing dependencies will be installed..."
 
 		OS=1 # 1 Will be equal to Arch
