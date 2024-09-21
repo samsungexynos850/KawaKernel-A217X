@@ -27,6 +27,10 @@ jobs:
           export PLATFORM_VERSION=12
           export ANDROID_MAJOR_VERSION=s
 
+      - name: Download KernelSU
+        run: |
+          git submodule update --init --recursive
+
       - name : Download toolchain
         run: |
           sudo git clone --depth=1 https://github.com/kdrag0n/proton-clang ~/toolchains/proton-clang/
