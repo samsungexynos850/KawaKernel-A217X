@@ -34,21 +34,17 @@ jobs:
       - name : Download toolchain
         run: |
           sudo git clone --depth=1 https://github.com/kdrag0n/proton-clang ~/toolchains/proton-clang/
-          export PATH=/home/$USER/toolchains/proton-clang/bin/:$PATH
-          export CLANG_TRIPLE=aarch64-linux-gnu-
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          export LLVM=1
-          export LLVM_IAS=1
 
       # Configure the kernel for your architecture (for example, x86_64)
       - name: Configure kernel
         run: |
-          make kawa_defconfig
+          export PATH=/home/runner/toolchains/proton-clang/bin/:$PATH
+          make kawa_defconfig CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 CC=clang
 
       # Compile the kernel
       - name: Build kernel
         run: |
-          make -j$(nproc)
+          make -j$(nproc) CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 CC=clang
 
       # Optionally, you can upload the compiled kernel as an artifact
       - name: Upload Kernel Build
