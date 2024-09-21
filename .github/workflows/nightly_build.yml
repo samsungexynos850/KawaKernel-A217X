@@ -23,13 +23,6 @@ jobs:
           sudo apt update
           sudo apt install git fakeroot ccache build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison python3 python-is-python3 -y
 
-          export ARCH=arm64
-          export PLATFORM_VERSION=12
-          export ANDROID_MAJOR_VERSION=s
-
-          export LLVM=1
-          export LLVM_IAS=1
-
       - name: Download KernelSU
         run: |
           git submodule update --init --recursive
@@ -41,6 +34,13 @@ jobs:
       # Configure the kernel for your architecture (for example, x86_64)
       - name: Configure kernel
         run: |
+           
+          export ARCH=arm64
+          export PLATFORM_VERSION=12
+          export ANDROID_MAJOR_VERSION=s
+
+          export LLVM=1
+          export LLVM_IAS=1        
           export PATH=/home/runner/toolchains/proton-clang/bin/:$PATH
           make kawa_defconfig CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu-
 
