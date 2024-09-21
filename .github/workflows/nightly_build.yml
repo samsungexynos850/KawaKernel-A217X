@@ -39,12 +39,12 @@ jobs:
       - name: Configure kernel
         run: |
           export PATH=/home/runner/toolchains/proton-clang/bin/:$PATH
-          make kawa_defconfig CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 CC=clang
+          make kawa_defconfig CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 CC=clang LD=/home/runner/toolchains/proton-clang/bin/ld.lld
 
       # Compile the kernel
       - name: Build kernel
         run: |
-          make -j$(nproc) CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 CC=clang
+          make -j$(nproc) CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 CC=clang LD=/home/runner/toolchains/proton-clang/bin/ld.lld
 
       # Optionally, you can upload the compiled kernel as an artifact
       - name: Upload Kernel Build
