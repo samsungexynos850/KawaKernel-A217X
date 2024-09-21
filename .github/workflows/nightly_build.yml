@@ -27,6 +27,9 @@ jobs:
           export PLATFORM_VERSION=12
           export ANDROID_MAJOR_VERSION=s
 
+          export LLVM=1
+		      export LLVM_IAS=1
+
       - name: Download KernelSU
         run: |
           git submodule update --init --recursive
@@ -39,12 +42,12 @@ jobs:
       - name: Configure kernel
         run: |
           export PATH=/home/runner/toolchains/proton-clang/bin/:$PATH
-          make kawa_defconfig CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 CC=clang LD=/home/runner/toolchains/proton-clang/bin/ld.lld
+          make kawa_defconfig CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu-
 
       # Compile the kernel
       - name: Build kernel
         run: |
-          make -j$(nproc) CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1 CC=clang LD=/home/runner/toolchains/proton-clang/bin/ld.lld
+          make -j$(nproc) CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu-
 
       # Optionally, you can upload the compiled kernel as an artifact
       - name: Upload Kernel Build
