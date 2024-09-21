@@ -28,7 +28,7 @@ jobs:
           export ANDROID_MAJOR_VERSION=s
 
           export LLVM=1
-		      export LLVM_IAS=1
+          export LLVM_IAS=1
 
       - name: Download KernelSU
         run: |
