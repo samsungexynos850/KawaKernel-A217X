@@ -663,7 +663,6 @@ static ssize_t up_rate_limit_us_store(struct gov_attr_set *attr_set,
 		update_min_rate_limit_ns(sg_policy);
 	}
 
-	if (task_is_booster(current))
 	return count;
 }
 
